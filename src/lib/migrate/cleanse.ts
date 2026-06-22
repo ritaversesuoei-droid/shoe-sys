@@ -71,8 +71,8 @@ export function splitMultiValue(s: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
-/** 最小CSVパーサ（ヘッダ行→オブジェクト配列。引用符・カンマ・改行に対応） */
-export function parseCsv(text: string): Record<string, string>[] {
+/** 最小CSVパーサ（生の行配列。引用符内のカンマ・改行に対応）。位置ベース処理向け。 */
+export function parseCsvRows(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -97,7 +97,12 @@ export function parseCsv(text: string): Record<string, string>[] {
     } else field += ch;
   }
   if (field !== "" || row.length) { row.push(field); if (row.some((c) => c !== "")) rows.push(row); }
+  return rows;
+}
 
+/** 最小CSVパーサ（ヘッダ行→オブジェクト配列。引用符・カンマ・改行に対応） */
+export function parseCsv(text: string): Record<string, string>[] {
+  const rows = parseCsvRows(text);
   if (!rows.length) return [];
   const header = rows[0]!.map((h) => h.trim());
   return rows.slice(1).map((r) => {
@@ -105,4 +110,20 @@ export function parseCsv(text: string): Record<string, string>[] {
     header.forEach((h, idx) => (o[h] = (r[idx] ?? "").trim()));
     return o;
   });
+}
+
+/** yyyy-MM-dd に n 日加算（UTC日付演算）→ yyyy-MM-dd */
+export function addDays(dateStr: string, n: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  const p = (v: number) => String(v).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+}
+
+/** "H:MM" を "HH:MM" にゼロ埋め（不正は null） */
+export function normTime(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const m = /^(\d{1,2}):(\d{2})/.exec(toHankaku(String(s)).trim());
+  if (!m) return null;
+  return `${m[1]!.padStart(2, "0")}:${m[2]}`;
 }

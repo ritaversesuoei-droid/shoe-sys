@@ -27,17 +27,28 @@
 - `drivers` / `vehicles` … 自然キー（code / vehicle_no）で upsert（再実行安全）。
 - `customers` / `dispatch_plans` … 存在チェックで重複回避。
 
-## events / shifts / daily_reports の移行（次工程）
+## 勤怠（shift_log）・運行データの移行 — 実ファイル対応済み
 
-現行 `event_log` / `shift_log` / `daily_reports` は列番号ベース・1セル多値・日跨ぎ補正など
-現行実装依存が強いため、本書 11.1 マッピングに沿った専用変換が必要:
+現行スプレッドシートの2シートを UTF-8 CSV で書き出し、下記名で `migration/input/` に置く:
 
-- `event_log` → `events`（改行区切り多値は `splitMultiValue` で `event_items` へ分割）
-- `shift_log` → `shifts`（列番号→列名マッピング表を作成）
-- `daily_reports`（1行1明細）→ `daily_reports` + `daily_report_legs` + `daily_report_rests`
-- 警告まとめ → `compliance_alerts`（shift IDで紐付け）
-- 投入後、全 shift の改善基準告示指標を **再計算**（`src/lib/compliance` / `src/lib/operations/shift.ts`）し、
-  現行値と突合（11.2 手順4）。
+### `shifts.csv`（勤怠シート / 修正入力）
+列順固定（先頭の「開始,日付,終了,日付」メタ行・空行はスキップし、`row_id` を含むヘッダ以降を処理）:
+`開始日, ドライバー名, 実績出庫, 実績退勤, 修正出庫, 補正(出庫), 修正退勤, 補正(退勤), 休憩時間, 修正理由・備考, 状態, row_id`
+- 実行: `npm run migrate:shifts`
+- 処理: ドライバー名寄せ（無ければ `MGxxx` 暫定コードで作成）→ `shifts` 投入（修正値優先・退勤<出勤で翌日跨ぎ判定）→ **全勤務の改善基準告示 指標/違反を再計算**。
+- 「データ無し」行（実績空）はスキップ。重複は (driver+work_date+実績出庫) で回避。
 
-クレンジング関数（`toHankaku` / `parseDateLoose` / `parseDateTimeLoose` / `parseNumberLoose` /
-`splitMultiValue` / `parseCsv`）は `src/lib/migrate/cleanse.ts` に集約済み。検証は `npm run test:migrate`。
+### `dispatch.csv`（運行データ）
+`所属, ドライバー名, 携帯番号, 車両NO, 物込日, 荷主名, 物積(住所), 着荷日, 着荷地(会社名), 注意事項, 高速指示, 表示順`
+- 実行: `npm run migrate:dispatch`（`MIGRATE_RESET=1` で既存を全削除してから投入）
+- 処理: `dispatch_plans` 投入。所属に「庄栄」を含まなければ `is_subcontract=true`（子車）。発地/着日/注意/表示順は `note` へ集約。
+
+### 検証
+- 合成フィクスチャでの結合テスト: `npm run test:migrate-files`（13ケース）。
+- クレンジング単体: `npm run test:migrate`。
+
+> ドライバーの暫定コード `MGxxx` は `/admin/masters` で正式な2桁業務IDへ修正できる。
+> 投入後は月次集計（`/admin/monthly`）・警告（`/admin/warnings`）で現行値と突合すること（11.2 手順4）。
+
+クレンジング/変換は `src/lib/migrate/`（`cleanse.ts` / `roster.ts` / `recompute.ts` /
+`import-shifts.ts` / `import-dispatch.ts`）に集約。
