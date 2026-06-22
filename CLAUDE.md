@@ -46,6 +46,12 @@ supabase/
 - `npm run typecheck` 型チェック / `npm run lint`
 - `npm run db:push` マイグレーション適用（要 Supabase 接続）
 - `npm run db:types` DB から型生成（要ローカルDB or リンク済みプロジェクト）
+- `npm run smoke` 全ルートの 5xx 検知（要 dev/start 稼働）/ `npm run test:all` 全結合テスト一括
+
+> ⚠ **`next dev` 稼働中に `npm run build` を実行しない**こと。`.next` を共有するため
+> 開発キャッシュが破損し `__webpack_modules__ is not a function` / `Cannot find module './xxx.js'` /
+> segment-explorer 等のランタイムエラーになる。発生時は dev停止→`rm -rf .next`→dev再起動で復旧。
+> ビルド検証は dev を止めてから行う。
 
 ## 重要な設計ルール
 
