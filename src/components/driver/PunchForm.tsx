@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+import { compressImage } from "@/lib/photo";
+import { to_month_key } from "@/lib/datekey";
 
 type EventType =
   | "departure"
@@ -32,7 +35,7 @@ interface Item {
   receipts?: string;
 }
 
-export function PunchForm({ type }: { type: EventType }) {
+export function PunchForm({ type, driverId }: { type: EventType; driverId: string }) {
   const cfg = CONFIG[type];
   const [vehicleNo, setVehicleNo] = useState("");
   const [address, setAddress] = useState("");
@@ -41,6 +44,7 @@ export function PunchForm({ type }: { type: EventType }) {
   const [alcohol, setAlcohol] = useState(false);
   const [note, setNote] = useState("");
   const [items, setItems] = useState<Item[]>(cfg.items ? [{}] : []);
+  const [photos, setPhotos] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
@@ -72,12 +76,30 @@ export function PunchForm({ type }: { type: EventType }) {
       if (cfg.alcohol && !alcohol) throw new Error("アルコールチェックの確認が必要です");
       if (vehicleNo) localStorage.setItem("shoei_vehicle_no", vehicleNo);
 
+      const idempotencyKey = crypto.randomUUID();
+
+      // 写真をクライアント圧縮して非公開バケットへアップロード（4.3.5）
+      const photoPaths: string[] = [];
+      if (photos.length) {
+        const supabase = createClient();
+        const ym = to_month_key(new Date());
+        for (let i = 0; i < photos.length; i++) {
+          const blob = await compressImage(photos[i]!);
+          const path = `${ym}/${driverId}/${idempotencyKey}_${i + 1}.jpg`;
+          const { error: upErr } = await supabase.storage
+            .from("event-photos")
+            .upload(path, blob, { contentType: "image/jpeg", upsert: true });
+          if (upErr) throw new Error(`写真アップロード失敗: ${upErr.message}`);
+          photoPaths.push(path);
+        }
+      }
+
       const cleanItems = items
         .map((it) => Object.fromEntries(Object.entries(it).filter(([, v]) => v)))
         .filter((it) => Object.keys(it).length > 0);
 
       const body = {
-        idempotency_key: crypto.randomUUID(),
+        idempotency_key: idempotencyKey,
         event_type: type,
         occurred_at: new Date().toISOString(),
         vehicle_no: vehicleNo || undefined,
@@ -87,6 +109,7 @@ export function PunchForm({ type }: { type: EventType }) {
         alcohol_checked: cfg.alcohol ? alcohol : undefined,
         note: note || undefined,
         items: cleanItems.length ? cleanItems : undefined,
+        photo_paths: photoPaths.length ? photoPaths : undefined,
       };
 
       const res = await fetch("/api/events", {
@@ -187,6 +210,23 @@ export function PunchForm({ type }: { type: EventType }) {
             )}
           </div>
         )}
+
+        <div className="block">
+          <span className="text-sm text-slate-600">
+            写真{cfg.alcohol ? "（アルコールチェック / 荷姿 等）" : "（荷姿 等・任意）"}
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            multiple
+            onChange={(e) => setPhotos(Array.from(e.target.files ?? []).slice(0, 3))}
+            className="mt-1 w-full text-sm"
+          />
+          {photos.length > 0 && (
+            <p className="mt-1 text-xs text-slate-400">{photos.length}枚 選択（最大3枚・自動圧縮）</p>
+          )}
+        </div>
 
         {cfg.alcohol && (
           <label className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3">
