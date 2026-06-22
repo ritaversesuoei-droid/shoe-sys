@@ -33,7 +33,8 @@
     "test:settings": "node --env-file=.env.local --import tsx scripts/test-settings.mts",
     "migrate:shifts": "node --env-file=.env.local --import tsx scripts/migrate/import-shifts.mts",
     "migrate:dispatch": "node --env-file=.env.local --import tsx scripts/migrate/import-dispatch.mts",
-    "test:migrate-files": "node --env-file=.env.local --import tsx scripts/test-migrate-files.mts"
+    "test:migrate-files": "node --env-file=.env.local --import tsx scripts/test-migrate-files.mts",
+    "migrate:all": "node --env-file=.env.local --import tsx scripts/migrate/import-all.mts"
   },
   "dependencies": {
     "@line/bot-sdk": "^9.5.0",
@@ -55,6 +56,7 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^9.18.0",
     "eslint-config-next": "^15.1.6",
+    "exceljs": "^4.4.0",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.22.4",

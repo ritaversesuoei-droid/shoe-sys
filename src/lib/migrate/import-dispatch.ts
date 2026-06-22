@@ -66,7 +66,7 @@ export async function importDispatchCsv(
       shipper: cleanText(r[5]) || null,
       delivery_spot: cleanText(r[8]) || null,
       highway_instruction: cleanText(r[10]) || null,
-      is_subcontract: !!affiliation && !affiliation.includes("庄栄"),
+      is_subcontract: !!affiliation && !affiliation.includes("昭栄"),
       note: note || null,
     });
   }

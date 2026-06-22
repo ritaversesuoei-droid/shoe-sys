@@ -40,3 +40,6 @@ supabase/.temp
 
 # claude code local settings
 .claude/settings.local.json
+
+# 移行元データ（個人情報含むため除外）
+migration/input/
