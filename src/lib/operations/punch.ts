@@ -26,6 +26,7 @@ export interface PunchInput {
   lat?: number;
   lng?: number;
   address?: string;
+  customer_id?: string | null;
   checks?: string;
   alcohol_checked?: boolean;
   note?: string;
@@ -101,6 +102,7 @@ export async function processPunch(
       lat: input.lat ?? null,
       lng: input.lng ?? null,
       address: input.address ?? null,
+      customer_id: input.customer_id ?? null,
       checks: input.checks ?? null,
       alcohol_checked: input.alcohol_checked ?? null,
       note: input.note ?? null,

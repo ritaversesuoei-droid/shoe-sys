@@ -20,7 +20,8 @@
     "test:board": "node --env-file=.env.local --import tsx scripts/test-board.mts",
     "provision:admin": "node --env-file=.env.local --import tsx scripts/provision-admin.mts",
     "provision:driver": "node --env-file=.env.local --import tsx scripts/provision-driver.mts",
-    "test:monthly": "node --env-file=.env.local --import tsx scripts/test-monthly.mts"
+    "test:monthly": "node --env-file=.env.local --import tsx scripts/test-monthly.mts",
+    "test:customer": "node --env-file=.env.local --import tsx scripts/test-customer.mts"
   },
   "dependencies": {
     "@line/bot-sdk": "^9.5.0",

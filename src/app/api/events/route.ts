@@ -3,6 +3,7 @@ import { requireDriver } from "@/lib/auth";
 import { ok, handle } from "@/lib/api/response";
 import { createEventSchema } from "@/lib/validation";
 import { processPunch } from "@/lib/operations/punch";
+import { enrichLocation } from "@/lib/operations/customer";
 import { isLineConfigured, notifyBusinessReport, notifyWarning } from "@/lib/line/notify";
 import { toWorkDate } from "@/lib/datekey";
 
@@ -25,7 +26,18 @@ export async function POST(request: Request) {
     const body = createEventSchema.parse(await request.json());
     const supabase = await createClient();
 
-    const result = await processPunch(supabase, ctx.driverId, body);
+    // (F-22) 逆ジオコーディング・客先名推定（住所が無く座標がある場合のみ・ベストエフォート）
+    const enriched = await enrichLocation(supabase, {
+      lat: body.lat,
+      lng: body.lng,
+      address: body.address,
+    });
+
+    const result = await processPunch(supabase, ctx.driverId, {
+      ...body,
+      address: enriched.address ?? undefined,
+      customer_id: enriched.customerId,
+    });
 
     if (result.deduped) {
       return ok({ eventId: result.eventId, shiftId: result.shiftId, deduped: true });
