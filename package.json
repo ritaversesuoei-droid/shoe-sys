@@ -15,7 +15,8 @@
     "db:push": "supabase db push",
     "db:reset": "supabase db reset",
     "db:types": "supabase gen types typescript --linked > src/types/database.ts",
-    "test:pdf": "node --env-file=.env.local --import tsx scripts/test-pdf.mts"
+    "test:pdf": "node --env-file=.env.local --import tsx scripts/test-pdf.mts",
+    "test:line": "node --env-file=.env.local --import tsx scripts/test-line.mts"
   },
   "dependencies": {
     "@line/bot-sdk": "^9.5.0",
