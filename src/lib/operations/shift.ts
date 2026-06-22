@@ -12,6 +12,19 @@ import {
 type SB = SupabaseClient<Database>;
 type ShiftRow = Database["public"]["Tables"]["shifts"]["Row"];
 
+/** work_date(yyyy-MM-dd) を含む週(月曜〜日曜)の範囲を返す。 */
+function weekRange(workDate: string): { start: string; end: string } {
+  const fmt = (d: Date) =>
+    `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  const d = new Date(`${workDate}T00:00:00Z`);
+  const mondayOffset = (d.getUTCDay() + 6) % 7; // 月曜からの経過日数
+  const start = new Date(d);
+  start.setUTCDate(d.getUTCDate() - mondayOffset);
+  const end = new Date(start);
+  end.setUTCDate(start.getUTCDate() + 6);
+  return { start: fmt(start), end: fmt(end) };
+}
+
 /** ドライバーの「開いている勤務」（退勤未記入）を1件返す。仕様書 4.3.2 / 4.3.3。 */
 export async function findOpenShift(
   sb: SB,
@@ -103,8 +116,19 @@ export async function closeShift(
     config,
   );
 
-  // TODO: 拘束14h超の「週2回まで」判定は週次集計(F-14)で精緻化。ここでは単発判定。
-  const judgement = judgeShift(metrics, config);
+  // 拘束14h超の「週2回まで」判定（仕様書6.3）。同一週(Mon-Sun)の既存超過回数を数える。
+  const week = weekRange(shift.work_date);
+  const { count } = await sb
+    .from("shifts")
+    .select("id", { count: "exact", head: true })
+    .eq("driver_id", shift.driver_id)
+    .gte("work_date", week.start)
+    .lte("work_date", week.end)
+    .neq("id", shift.id)
+    .not("clock_out_at", "is", null)
+    .gt("restraint_min", config.daily_restraint.extended_threshold_min);
+
+  const judgement = judgeShift(metrics, config, { extendedCountThisWeek: count ?? 0 });
 
   const warnRestraint =
     judgement.items.find((i) => i.type === "restraint" && i.severity !== "info")

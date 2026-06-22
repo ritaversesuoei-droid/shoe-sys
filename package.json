@@ -24,7 +24,8 @@
     "test:customer": "node --env-file=.env.local --import tsx scripts/test-customer.mts",
     "test:migrate": "node --import tsx scripts/test-migrate.mts",
     "migrate:masters": "node --env-file=.env.local --import tsx scripts/migrate/import-masters.mts",
-    "test:warning": "node --env-file=.env.local --import tsx scripts/test-warning.mts"
+    "test:warning": "node --env-file=.env.local --import tsx scripts/test-warning.mts",
+    "test:weekly": "node --env-file=.env.local --import tsx scripts/test-weekly.mts"
   },
   "dependencies": {
     "@line/bot-sdk": "^9.5.0",
