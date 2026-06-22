@@ -10,7 +10,8 @@ type SB = SupabaseClient<Database>;
  * 運行データCSV（配車）→ drivers + dispatch_plans。
  * 列順: 0 所属 / 1 ドライバー名 / 2 携帯番号 / 3 車両NO / 4 物込日 / 5 荷主名 /
  *   6 物積(住所) / 7 着荷日 / 8 着荷地(会社名) / 9 注意事項 / 10 高速指示 / 11 表示順
- * 所属に「庄栄」を含まなければ子車(is_subcontract)。発地/着日/注意は note へ集約。
+ * 所属に「昭栄」を含まなければ子車(is_subcontract)。子車は drivers に作らず
+ * driver_name_raw のみ保持（自社のみ driver_id 連結）。発地/着日/注意は note へ集約。
  */
 export interface DispatchImportResult {
   driversCreated: number;
@@ -45,7 +46,8 @@ export async function importDispatchCsv(
     }
     const affiliation = cleanText(r[0]);
     const name = cleanText(r[1]);
-    const driverId = name
+    const isSub = !!affiliation && !affiliation.includes("昭栄");
+    const driverId = !isSub && name
       ? await resolver.resolve(name, { affiliation, create: true })
       : null;
 
@@ -66,7 +68,7 @@ export async function importDispatchCsv(
       shipper: cleanText(r[5]) || null,
       delivery_spot: cleanText(r[8]) || null,
       highway_instruction: cleanText(r[10]) || null,
-      is_subcontract: !!affiliation && !affiliation.includes("昭栄"),
+      is_subcontract: isSub,
       note: note || null,
     });
   }

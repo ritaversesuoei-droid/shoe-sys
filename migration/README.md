@@ -1,54 +1,59 @@
 # データ移行（現行スプレッドシート → Supabase）
 
-仕様書 第11章に基づく移行手順とツール。
+仕様書 第11章に基づく移行手順とツール。現行ブック（xlsx）を**直接読み込んで**一括投入する。
 
-## 手順（11.2 移行方式）
+## かんたん手順（推奨・xlsx一括）
 
-1. **CSVエクスポート** — 現行スプレッドシート（勤怠用・運車用）の各シートをCSV出力。
-2. **配置** — `migration/input/` に下記ファイル名で置く（`templates/` の列定義に合わせる）。
-3. **クレンジング＋投入** — `npm run migrate:masters`（マスタ系）。
-   - 表記ゆれ（全半角・GMT文字列混在・スペース/カンマ）は `src/lib/migrate/cleanse.ts` で吸収。
-4. **検証** — 件数・突合（現行値との差分）。
-5. **並行稼働**（任意）— 一定期間 両系へ流し差分検証。
+1. 現行の2ブックをそのまま `migration/input/` に置く（ファイル名は任意。シート名で自動判別）。
+   - 勤怠ブック … `shift_log` / `drivers` / `vehicles` / `客先マスタ` / `event_log` / `修正入力` を含む
+   - 運行ブック … `運行データ` を含む
+2. 一括取込: **`npm run migrate:all`**
+   - 順序: drivers → vehicles → 客先 → shift_log(shifts) → event_log(events) → 運行データ(dispatch) → 指標・違反 再計算
+   - `MIGRATE_RESET=1 npm run migrate:all` で dispatch_plans を全削除してから投入。
+3. 打刻履歴を別途取り込む場合: `npm run migrate:events`
+4. shift_log に無い期間の勤怠を「修正入力」シートから補完: `npm run migrate:editinput`
+5. 検証 — 件数・突合（`/admin/monthly`・`/admin/warnings` で現行値と照合）。
 
-## 入力ファイル（`migration/input/`）
+> 構造確認は `node --import tsx scripts/migrate/inspect-xlsx.mts`（各シートのヘッダ＋先頭行を表示）。
 
-| ファイル | 移行先テーブル | 主な列 |
+## シート → テーブル 対応
+
+| シート | テーブル | 主な変換 |
 | --- | --- | --- |
-| `drivers.csv` | drivers | code, name, line_user_id, default_vehicle_no, affiliation |
-| `vehicles.csv` | vehicles | vehicle_no, name, kind |
-| `customers.csv` | customers | postal_code, address, name, yago |
-| `dispatch_plans.csv` | dispatch_plans | plan_date, driver_code, driver_name, vehicle_no, shipper, delivery_spot, highway_instruction, is_subcontract |
+| `drivers` | drivers | code=driver_id（正式業務ID）, line_chat_url=line_ID, default_vehicle_no=car_No |
+| `vehicles` | vehicles | vehicle_no, name=note, is_active=active_flag |
+| `客先マスタ` | customers | name=荷主名, yago=荷主名（F-22 照合用） |
+| `shift_log` | shifts | **確定出勤/確定退勤**を clock_in/out に採用（日跨ぎ確定済）。休憩・修正値も保持 |
+| `event_log` | events / event_items | event_type(日本語)→enum、idempotency_key=event_id、shift_id は時刻で連結、積込/荷卸は明細化 |
+| `修正入力` | shifts | 確定列が無いため時刻＋日跨ぎヒューリスティック（補完用、headerRow=3） |
+| `運行データ` | dispatch_plans | 所属に「昭栄」を含まなければ子車。発地/着日/注意/順は note へ集約 |
 
-列テンプレートは `migration/templates/*.csv` を参照（ヘッダ＋サンプル行）。
+## 設計上の扱い
+
+- **自社/子車**: 会社名は「昭栄運輸」。所属に「昭栄」を含めば自社、含まなければ子車(`is_subcontract`)。
+- **子車ドライバー**: `drivers` マスタには作らず `dispatch_plans.driver_name_raw` で表示（自社のみ `driver_id` 連結）。
+  据置端末/管理マスタのドライバー選択を自社のみに保つため。
+- **写真**: 現行は Google Drive 上のため移行対象外（URLのみ存在）。新システムでは Storage に保存。
+- **daily_reports シート**: 実データ無し（移行対象なし）。
+- **警告まとめ**: 違反は再計算で再現するため取込不要（是正コメントは未移行）。
 
 ## 冪等性
 
 - `drivers` / `vehicles` … 自然キー（code / vehicle_no）で upsert（再実行安全）。
-- `customers` / `dispatch_plans` … 存在チェックで重複回避。
+- `customers` … name の存在チェックで重複回避。
+- `shifts` … (driver+work_date+clock_in_at) で重複回避。
+- `events` … idempotency_key=event_id の存在チェックで重複回避。
+- `dispatch_plans` … `MIGRATE_RESET=1` で全削除してから再投入。
 
-## 勤怠（shift_log）・運行データの移行 — 実ファイル対応済み
+## 検証
 
-現行スプレッドシートの2シートを UTF-8 CSV で書き出し、下記名で `migration/input/` に置く:
-
-### `shifts.csv`（勤怠シート / 修正入力）
-列順固定（先頭の「開始,日付,終了,日付」メタ行・空行はスキップし、`row_id` を含むヘッダ以降を処理）:
-`開始日, ドライバー名, 実績出庫, 実績退勤, 修正出庫, 補正(出庫), 修正退勤, 補正(退勤), 休憩時間, 修正理由・備考, 状態, row_id`
-- 実行: `npm run migrate:shifts`
-- 処理: ドライバー名寄せ（無ければ `MGxxx` 暫定コードで作成）→ `shifts` 投入（修正値優先・退勤<出勤で翌日跨ぎ判定）→ **全勤務の改善基準告示 指標/違反を再計算**。
-- 「データ無し」行（実績空）はスキップ。重複は (driver+work_date+実績出庫) で回避。
-
-### `dispatch.csv`（運行データ）
-`所属, ドライバー名, 携帯番号, 車両NO, 物込日, 荷主名, 物積(住所), 着荷日, 着荷地(会社名), 注意事項, 高速指示, 表示順`
-- 実行: `npm run migrate:dispatch`（`MIGRATE_RESET=1` で既存を全削除してから投入）
-- 処理: `dispatch_plans` 投入。所属に「庄栄」を含まなければ `is_subcontract=true`（子車）。発地/着日/注意/表示順は `note` へ集約。
-
-### 検証
 - 合成フィクスチャでの結合テスト: `npm run test:migrate-files`（13ケース）。
 - クレンジング単体: `npm run test:migrate`。
 
-> ドライバーの暫定コード `MGxxx` は `/admin/masters` で正式な2桁業務IDへ修正できる。
-> 投入後は月次集計（`/admin/monthly`）・警告（`/admin/warnings`）で現行値と突合すること（11.2 手順4）。
+## 旧CSV方式（任意）
 
-クレンジング/変換は `src/lib/migrate/`（`cleanse.ts` / `roster.ts` / `recompute.ts` /
-`import-shifts.ts` / `import-dispatch.ts`）に集約。
+シートを UTF-8 CSV で書き出して投入する個別コマンドも残置:
+`npm run migrate:masters` / `migrate:shifts` / `migrate:dispatch`（列定義は `migration/templates/*.csv`）。
+
+ロジックは `src/lib/migrate/`（`xlsx.ts` / `cleanse.ts` / `roster.ts` / `recompute.ts` /
+`import-xlsx.ts` / `import-events.ts` / `import-shifts.ts` / `import-dispatch.ts`）に集約。

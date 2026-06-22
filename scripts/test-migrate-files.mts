@@ -80,6 +80,8 @@ async function main() {
 }
 
 async function cleanup() {
+  // 子車配車は driver_id 未連結のため shipper で削除
+  await sb.from("dispatch_plans").delete().in("shipper", ["テスト荷主", "テスト荷主2"]);
   for (const name of NAMES) {
     const id = await driverIdByName(name);
     if (!id) continue;

@@ -206,7 +206,9 @@ export async function importDispatchSheet(
     if (!planDate) continue;
     const affiliation = cleanText(r["所属"]);
     const name = cleanText(r["ドライバー名"]);
-    const driverId = name ? await resolver.resolve(name, { affiliation, create: true }) : null;
+    const isSub = !!affiliation && !affiliation.includes(HOME);
+    // 子車（外注）は drivers マスタに作らず driver_name_raw で表示。自社のみ driver_id 連結。
+    const driverId = !isSub && name ? await resolver.resolve(name, { affiliation, create: true }) : null;
     const note = [
       cleanText(r["注意事項"]),
       r["積地（住所）"] ? `発:${cleanText(r["積地（住所）"])}` : "",
@@ -222,7 +224,7 @@ export async function importDispatchSheet(
       shipper: cleanText(r["荷主名"]) || null,
       delivery_spot: cleanText(r["着荷地（会社名）"]) || null,
       highway_instruction: cleanText(r["高速指示"]) || null,
-      is_subcontract: !!affiliation && !affiliation.includes(HOME),
+      is_subcontract: isSub,
       note: note || null,
     });
   }
