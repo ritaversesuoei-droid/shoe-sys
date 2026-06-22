@@ -117,9 +117,12 @@ export default async function AdminHome() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">
+        <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
           未対応の警告（改善基準告示）
-          <span className="ml-2 text-sm font-normal text-slate-500">{warningRows.length} 件</span>
+          <span className="text-sm font-normal text-slate-500">{warningRows.length} 件</span>
+          <Link href="/admin/warnings" className="ml-auto rounded-lg border border-slate-300 px-3 py-1 text-sm font-medium">
+            是正登録 →
+          </Link>
         </h2>
         {warningRows.length === 0 ? (
           <p className="rounded-lg border border-dashed p-6 text-center text-slate-400">
