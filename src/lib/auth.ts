@@ -2,6 +2,9 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import type { ProfileRole } from "@/types/database";
+import { AuthError } from "@/lib/errors";
+
+export { AuthError };
 
 export interface SessionContext {
   userId: string;
@@ -33,16 +36,6 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     driverId: profile?.driver_id ?? null,
     displayName: profile?.display_name ?? null,
   };
-}
-
-export class AuthError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-  ) {
-    super(message);
-    this.name = "AuthError";
-  }
 }
 
 /** 管理者であることを要求。違反時は AuthError(401/403)。 */

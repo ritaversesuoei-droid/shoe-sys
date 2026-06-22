@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { AuthError } from "@/lib/auth";
+import { AppError } from "@/lib/errors";
 
 /**
  * API 共通レスポンス（仕様書 8.2 のレスポンス形式に準拠）。
@@ -20,7 +20,7 @@ export function handle(
   fn: () => Promise<NextResponse>,
 ): Promise<NextResponse> {
   return fn().catch((e: unknown) => {
-    if (e instanceof AuthError) return fail(e.message, e.status);
+    if (e instanceof AppError) return fail(e.message, e.status);
     if (e instanceof ZodError) {
       return fail(
         "入力が不正です: " + e.issues.map((i) => i.message).join(", "),
