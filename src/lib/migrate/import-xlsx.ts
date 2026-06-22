@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, TablesInsert } from "@/types/database";
-import { cleanText, cleanCode, parseDateLoose, normTime } from "./cleanse";
+import { cleanText, cleanCode, parseDateLoose, parseNumberLoose, normTime, addDays } from "./cleanse";
 import { toJstIso } from "./xlsx";
 import { to_month_key } from "@/lib/datekey";
+import { parseTimeToMinutes } from "@/lib/time";
 import { createDriverResolver } from "./roster";
 
 type SB = SupabaseClient<Database>;
@@ -116,6 +117,71 @@ export async function importShiftLog(
       actual_out: actualOut ? `${actualOut}:00` : null,
       edited_in: editedIn ? `${editedIn}:00` : null,
       edited_out: editedOut ? `${editedOut}:00` : null,
+      rest_time: rest ? `${rest}:00` : "0",
+      revision_status: editedIn || editedOut ? "edited" : "none",
+    });
+    if (error) throw error;
+    inserted += 1;
+  }
+  return { inserted, skipped };
+}
+
+/**
+ * 修正入力シート → shifts（shift_log に無い期間の補完用）。
+ * 確定列が無いため時刻ベースで構築（修正値優先・退勤<出勤 かつ補正0 で翌日跨ぎ）。headerRow=3。
+ */
+export async function importEditInput(
+  sb: SB,
+  rows: Row[],
+  resolver: ReturnType<typeof createDriverResolver>,
+): Promise<{ inserted: number; skipped: number }> {
+  let inserted = 0;
+  let skipped = 0;
+  for (const r of rows) {
+    const workDate = parseDateLoose(r["開始日"]);
+    const name = cleanText(r["ドライバー名"]);
+    const actualIn = normTime(r["実績出勤"]);
+    const actualOut = normTime(r["実績退勤"]);
+    if (!workDate || !name || !actualIn || !actualOut) {
+      skipped += 1;
+      continue;
+    }
+    const editedIn = normTime(r["修正出勤"]);
+    const editedOut = normTime(r["修正退勤"]);
+    const inAdj = parseNumberLoose(r["補正(出勤)"]) ?? 0;
+    const outAdj = parseNumberLoose(r["補正(退勤)"]) ?? 0;
+    const rest = normTime(r["休憩時間"]);
+    const driverId = (await resolver.resolve(name, { affiliation: "昭栄運輸", create: true }))!;
+
+    const { data: dup } = await sb
+      .from("shifts")
+      .select("id")
+      .eq("driver_id", driverId)
+      .eq("work_date", workDate)
+      .eq("actual_in", `${actualIn}:00`)
+      .limit(1)
+      .maybeSingle();
+    if (dup) {
+      skipped += 1;
+      continue;
+    }
+
+    const inTime = editedIn ?? actualIn;
+    const outTime = editedOut ?? actualOut;
+    const crossNext = (parseTimeToMinutes(outTime) ?? 0) < (parseTimeToMinutes(inTime) ?? 0) && outAdj === 0;
+
+    const { error } = await sb.from("shifts").insert({
+      driver_id: driverId,
+      work_date: workDate,
+      month_key: to_month_key(`${workDate}T00:00:00+09:00`),
+      clock_in_at: `${addDays(workDate, inAdj)}T${inTime}:00+09:00`,
+      clock_out_at: `${addDays(workDate, outAdj + (crossNext ? 1 : 0))}T${outTime}:00+09:00`,
+      actual_in: `${actualIn}:00`,
+      actual_out: `${actualOut}:00`,
+      edited_in: editedIn ? `${editedIn}:00` : null,
+      edited_out: editedOut ? `${editedOut}:00` : null,
+      edited_in_adj_days: inAdj,
+      edited_out_adj_days: outAdj,
       rest_time: rest ? `${rest}:00` : "0",
       revision_status: editedIn || editedOut ? "edited" : "none",
     });

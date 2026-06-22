@@ -11,6 +11,7 @@ import type { Database } from "@/types/database";
 import { workbookSheets, loadSheetObjects } from "@/lib/migrate/xlsx";
 import { createDriverResolver } from "@/lib/migrate/roster";
 import { importDrivers, importVehicles, importCustomers, importShiftLog, importDispatchSheet } from "@/lib/migrate/import-xlsx";
+import { importEventLog } from "@/lib/migrate/import-events";
 import { recomputeAllMetrics } from "@/lib/migrate/recompute";
 
 const sb = createClient<Database>(
@@ -53,7 +54,11 @@ async function main() {
   const sr = await importShiftLog(sb, await loadSheetObjects(kintai, "shift_log", 1), resolver);
   console.log(`✓ shifts: ${sr.inserted}件投入 / スキップ ${sr.skipped} / driver新規 ${resolver.created()}`);
 
-  // 5) 運行データ → dispatch_plans
+  // 5) event_log → events (+ event_items)
+  const ev = await importEventLog(sb, await loadSheetObjects(kintai, "event_log", 1), resolver);
+  console.log(`✓ events: ${ev.events}件 / 明細 ${ev.items}件 / スキップ ${ev.skipped}`);
+
+  // 6) 運行データ → dispatch_plans
   if (unko) {
     const disp = await importDispatchSheet(sb, await loadSheetObjects(unko, "運行データ", 1), resolver, { reset: process.env.MIGRATE_RESET === "1" });
     console.log(`✓ dispatch_plans: ${disp}件投入 / driver累計新規 ${resolver.created()}`);

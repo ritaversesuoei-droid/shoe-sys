@@ -31,7 +31,7 @@ const SHIFTS_CSV = `開始,2026/05/21,終了,2026/05/25,,,,,,,,
 `;
 
 const DISPATCH_CSV = `所属,ドライバー名,携帯番号,車両NO,物込日,荷主名,物積（住所）,着荷日,着荷地（会社名）,注意事項,高速指示,表示順
-庄栄運輸,移行試験 一郎,090-0000-0001,1001,2026/05/21,テスト荷主,知多市,2026/05/21,名古屋市,13:00,高速可,1
+昭栄運輸,移行試験 一郎,090-0000-0001,1001,2026/05/21,テスト荷主,知多市,2026/05/21,名古屋市,13:00,高速可,1
 大樹興業 ,移行試験 四郎,090-0000-0002,2001,2026/05/21,テスト荷主2,大阪市,2026/05/22,東京都,,,2
 `;
 
@@ -71,7 +71,7 @@ async function main() {
   const dr = await importDispatchCsv(sb, join(dir, "dispatch.csv"));
   check("2件投入", dr.inserted === 2, dr);
   const { data: dp1 } = await sb.from("dispatch_plans").select("is_subcontract, driver_id").eq("shipper", "テスト荷主").maybeSingle();
-  check("自社(庄栄)はis_subcontract=false", dp1?.is_subcontract === false, dp1);
+  check("自社(昭栄)はis_subcontract=false", dp1?.is_subcontract === false, dp1);
   check("配車が一郎に紐付く", dp1?.driver_id === id1, dp1?.driver_id);
   const { data: dp2 } = await sb.from("dispatch_plans").select("is_subcontract").eq("shipper", "テスト荷主2").maybeSingle();
   check("子車(大樹興業)はis_subcontract=true", dp2?.is_subcontract === true, dp2);

@@ -34,7 +34,9 @@
     "migrate:shifts": "node --env-file=.env.local --import tsx scripts/migrate/import-shifts.mts",
     "migrate:dispatch": "node --env-file=.env.local --import tsx scripts/migrate/import-dispatch.mts",
     "test:migrate-files": "node --env-file=.env.local --import tsx scripts/test-migrate-files.mts",
-    "migrate:all": "node --env-file=.env.local --import tsx scripts/migrate/import-all.mts"
+    "migrate:all": "node --env-file=.env.local --import tsx scripts/migrate/import-all.mts",
+    "migrate:events": "node --env-file=.env.local --import tsx scripts/migrate/import-events.mts",
+    "migrate:editinput": "node --env-file=.env.local --import tsx scripts/migrate/import-editinput.mts"
   },
   "dependencies": {
     "@line/bot-sdk": "^9.5.0",
