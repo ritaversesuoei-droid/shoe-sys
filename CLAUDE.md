@@ -73,15 +73,19 @@ supabase/
 - 逆ジオ・客先名学習（F-22）: `src/lib/geo/reverse.ts`（GSI/Google）・`src/lib/operations/customer.ts`
 - データ移行（第11章）: `src/lib/migrate/cleanse.ts`・`scripts/migrate/import-masters.mts`・`migration/`
 
+追加実装: 是正登録UI（F-13, `src/app/admin/warnings`）/ 拘束14h超「週2回まで」週次判定（`closeShift`）/
+打刻写真アップロード（`src/lib/photo.ts`, event-photos バケット, RLS）。
+
 検証/運用スクリプト（`npm run ...`）:
-- 結合/単体テスト（実DBはデータ自動削除）: `test:punch` `test:daily` `test:pdf` `test:line` `test:board` `test:monthly` `test:customer` `test:migrate`
-- 運用: `provision:admin` `provision:driver`（アカウント作成）/ `migrate:masters`（CSVマスタ投入, MIGRATE_DIR指定可）
+- 結合/単体テスト（実DBはデータ自動削除・92アサーション全PASS）:
+  `test:punch` `test:daily` `test:pdf` `test:line` `test:board` `test:monthly` `test:customer` `test:migrate` `test:warning` `test:weekly` `test:photo`
+- 運用: `provision:admin` `provision:driver`（アカウント作成, *_PASSWORD/*_EMAIL指定可）/ `migrate:masters`（CSVマスタ投入, MIGRATE_DIR指定可）
 - スクリプトは `node --env-file=.env.local --import tsx scripts/*.mts` 形式（tsx, @エイリアス解決）
 
-次フェーズ（TODO、コード内に `TODO(...)` で明示）:
-- 改善基準告示の精緻化（祝日カレンダー連携 / 拘束14h超 週2回まで判定 / 特例 / 法令最新値の社労士検証）
-- events/shifts/daily_reports の移行変換（11.1）→ 全shift指標の再計算・突合
-- 確定時 自動PDF生成（退勤打刻トリガ）/ 写真Storage前段アップロード / 是正台帳UI（F-13）
-- 警告まとめ画面の是正登録UI / 月次の休日区分手修正→再計算
+残（要・外部入力 / 業務判断）:
+- events/shifts/daily_reports の移行変換（11.1）→ 全shift指標の再計算・突合 … **現行スプレッドシートのCSVが必要**
+- 改善基準告示の法令最新値・特例（分割休息/2人乗務/フェリー）… **社労士確認が必要**
+- 祝日カレンダー連携（月次の休日労働）… 祝日データソースの選定
+- 確定時のサーバー側自動PDF生成（現状は日報確定後にクライアントから生成）/ 月次の休日区分手修正→再計算
 
 詳細な設計判断は `docs/` を参照。
