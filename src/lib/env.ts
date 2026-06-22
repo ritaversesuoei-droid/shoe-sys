@@ -26,6 +26,7 @@ const serverSchema = z.object({
   LINE_CHANNEL_SECRET: z.string().min(1).optional(),
   LINE_LOGIN_CHANNEL_ID: z.string().min(1).optional(),
   LINE_ADMIN_TARGET_ID: z.string().optional(),
+  OFFICE_TERMINAL_TOKEN: z.string().min(1).optional(),
   APP_TIMEZONE: z.string().default("Asia/Tokyo"),
 });
 
@@ -40,6 +41,7 @@ export function getServerEnv() {
     LINE_CHANNEL_SECRET: process.env.LINE_CHANNEL_SECRET,
     LINE_LOGIN_CHANNEL_ID: process.env.LINE_LOGIN_CHANNEL_ID,
     LINE_ADMIN_TARGET_ID: process.env.LINE_ADMIN_TARGET_ID,
+    OFFICE_TERMINAL_TOKEN: process.env.OFFICE_TERMINAL_TOKEN,
     APP_TIMEZONE: process.env.APP_TIMEZONE,
   });
 }
