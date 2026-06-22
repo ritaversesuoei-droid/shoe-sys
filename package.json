@@ -18,7 +18,8 @@
     "test:pdf": "node --env-file=.env.local --import tsx scripts/test-pdf.mts",
     "test:line": "node --env-file=.env.local --import tsx scripts/test-line.mts",
     "test:board": "node --env-file=.env.local --import tsx scripts/test-board.mts",
-    "provision:admin": "node --env-file=.env.local --import tsx scripts/provision-admin.mts"
+    "provision:admin": "node --env-file=.env.local --import tsx scripts/provision-admin.mts",
+    "provision:driver": "node --env-file=.env.local --import tsx scripts/provision-driver.mts"
   },
   "dependencies": {
     "@line/bot-sdk": "^9.5.0",
