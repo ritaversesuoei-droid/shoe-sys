@@ -15,6 +15,7 @@ const ACTIONS: { key: string; label: string; href: string; tone?: string }[] = [
   { key: "leg_departure", label: "各駅出発", href: "/driver/punch/leg_departure" },
   { key: "long_rest", label: "長距離休憩", href: "/driver/punch/long_rest" },
   { key: "clock_out", label: "退勤", href: "/driver/punch/clock_out", tone: "bg-orange-600 text-white" },
+  { key: "report", label: "日報作成", href: "/driver/report" },
   { key: "history", label: "当日履歴", href: "/driver/history" },
 ];
 

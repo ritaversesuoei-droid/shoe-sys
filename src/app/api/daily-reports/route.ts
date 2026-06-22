@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
     const supabase = await createClient();
     const report = await assembleDailyReport(supabase, ctx.driverId, date);
-    return ok({ report, generated: report?.generated ?? false });
+    return ok({ report, generated: report?.generated ?? false, driverId: ctx.driverId });
   });
 }
 
