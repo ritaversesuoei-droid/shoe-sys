@@ -10,6 +10,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test:punch": "node --env-file=.env.local --import tsx scripts/test-punch.mts",
+    "test:daily": "node --env-file=.env.local --import tsx scripts/test-daily-report.mts",
     "db:diff": "supabase db diff",
     "db:push": "supabase db push",
     "db:reset": "supabase db reset",
