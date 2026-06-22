@@ -38,8 +38,10 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // 管理者領域は未認証ならログインへ。ドライバーは LIFF 経由のため別扱い。
-  const isProtectedAdmin = pathname.startsWith("/admin");
+  // 管理者領域は未認証ならログインへ。ただしログイン画面自身は除外（リダイレクトループ防止）。
+  // ドライバーは LIFF 経由のため別扱い。
+  const isProtectedAdmin =
+    pathname.startsWith("/admin") && !pathname.startsWith("/admin/login");
   if (isProtectedAdmin && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/admin/login";
