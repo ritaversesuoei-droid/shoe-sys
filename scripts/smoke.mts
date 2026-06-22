@@ -7,7 +7,7 @@ const BASE = process.env.BASE_URL ?? "http://localhost:3000";
 
 const PAGES = [
   "/", "/driver", "/office", "/admin", "/admin/login", "/admin/monthly", "/admin/warnings",
-  "/admin/masters",
+  "/admin/masters", "/admin/settings",
   "/driver/history", "/driver/report", "/driver/punch/loading", "/driver/punch/clock_out",
 ];
 const APIS = [
