@@ -67,15 +67,21 @@ supabase/
 - 日報PDF（F-17/18）: `src/lib/pdf/*`（B5 HTML→puppeteer-core→Storage署名URL）
 - LINE通知（F-16）: `src/lib/line/notify.ts`（業務報告/違反警告, 未設定時スキップ）
 - 運行ダッシュボード（F-15）: `src/lib/operations/board.ts`・`src/app/admin/page.tsx`（Realtime即時反映）
+- 月次集計（F-14）: `src/lib/operations/monthly-summary.ts`・`src/app/admin/monthly`（出勤日数/拘束/労働/残業/休日/深夜/違反）
+- ドライバー打刻UI（S-02〜07）: `src/app/driver/*`・`src/components/driver/*`（位置取得/明細/アルコール/日報編集）
+- 据置端末（S-08/09）: `src/lib/office.ts`・`src/app/api/office/*`・`src/components/office/*`（端末トークン認証で代行打刻）
+- 逆ジオ・客先名学習（F-22）: `src/lib/geo/reverse.ts`（GSI/Google）・`src/lib/operations/customer.ts`
+- データ移行（第11章）: `src/lib/migrate/cleanse.ts`・`scripts/migrate/import-masters.mts`・`migration/`
 
 検証/運用スクリプト（`npm run ...`）:
-- `test:punch` `test:daily` `test:pdf` `test:line` `test:board` … 実DB結合テスト（データ自動削除）
-- `provision:admin` … 管理者アカウント作成（ADMIN_EMAIL/ADMIN_PASSWORD 環境変数で指定可）
+- 結合/単体テスト（実DBはデータ自動削除）: `test:punch` `test:daily` `test:pdf` `test:line` `test:board` `test:monthly` `test:customer` `test:migrate`
+- 運用: `provision:admin` `provision:driver`（アカウント作成）/ `migrate:masters`（CSVマスタ投入, MIGRATE_DIR指定可）
 - スクリプトは `node --env-file=.env.local --import tsx scripts/*.mts` 形式（tsx, @エイリアス解決）
 
 次フェーズ（TODO、コード内に `TODO(...)` で明示）:
-- 月次集計（F-14: 拘束/労働/残業/深夜/違反件数, 祝日連携, 週次2回まで判定）
-- 逆ジオコーディング・客先名推定（F-22）/ 写真Storage前段アップロード
-- 確定時 自動PDF生成（退勤打刻トリガ）/ 据置端末フロー / 移行スクリプト（第11章）
+- 改善基準告示の精緻化（祝日カレンダー連携 / 拘束14h超 週2回まで判定 / 特例 / 法令最新値の社労士検証）
+- events/shifts/daily_reports の移行変換（11.1）→ 全shift指標の再計算・突合
+- 確定時 自動PDF生成（退勤打刻トリガ）/ 写真Storage前段アップロード / 是正台帳UI（F-13）
+- 警告まとめ画面の是正登録UI / 月次の休日区分手修正→再計算
 
 詳細な設計判断は `docs/` を参照。
