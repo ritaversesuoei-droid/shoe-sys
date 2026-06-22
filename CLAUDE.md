@@ -56,14 +56,26 @@ supabase/
 - **打刻は冪等**: `events.idempotency_key`（クライアント生成UUID, 4.3.4 優先キー方式）。
 - 違反は **ソフト解消**（`compliance_alerts.status`）で監査証跡を保持（13章D）。
 
-## 実装状況（このフェーズ＝基盤）
+## 実装状況
 
-完了: プロジェクト雛形 / DBスキーマ+RLS / 認証基盤 / 改善基準告示calc / LINE基盤 / API雛形 / 画面導線。
+基盤: プロジェクト雛形 / DBスキーマ+RLS / 認証基盤 / 改善基準告示calc / LINE基盤 / API / 画面導線。
+接続: Supabase(ritaversesuoei-droid プロジェクト, link済・全migration適用済・型生成済) / GitHub(ritaversesuoei-droid/shoe-sys, SSH 443経由)。
+
+機能（実装＋実DB検証済み）:
+- 打刻パイプライン（F-02〜07）: `src/lib/operations/punch.ts`・`shift.ts`（二重打刻防止/連結/集計/違反判定）
+- 日報フロー（F-10）: `src/lib/operations/daily-report.ts`（自動補完/保存/確定バリデーション）
+- 日報PDF（F-17/18）: `src/lib/pdf/*`（B5 HTML→puppeteer-core→Storage署名URL）
+- LINE通知（F-16）: `src/lib/line/notify.ts`（業務報告/違反警告, 未設定時スキップ）
+- 運行ダッシュボード（F-15）: `src/lib/operations/board.ts`・`src/app/admin/page.tsx`（Realtime即時反映）
+
+検証/運用スクリプト（`npm run ...`）:
+- `test:punch` `test:daily` `test:pdf` `test:line` `test:board` … 実DB結合テスト（データ自動削除）
+- `provision:admin` … 管理者アカウント作成（ADMIN_EMAIL/ADMIN_PASSWORD 環境変数で指定可）
+- スクリプトは `node --env-file=.env.local --import tsx scripts/*.mts` 形式（tsx, @エイリアス解決）
 
 次フェーズ（TODO、コード内に `TODO(...)` で明示）:
-- 打刻パイプライン完全版（二重打刻防止 4.3.3 / shift連結 / 逆ジオコーディング / 通知 / 集計）
-- 日報の自動補完・保存（4.6）と確定→PDF（F-17, Puppeteer）
-- 月次集計（F-14）/ 運行盤面 Realtime（F-15）
-- 移行スクリプト（第11章: スプレッドシート→Postgres）
+- 月次集計（F-14: 拘束/労働/残業/深夜/違反件数, 祝日連携, 週次2回まで判定）
+- 逆ジオコーディング・客先名推定（F-22）/ 写真Storage前段アップロード
+- 確定時 自動PDF生成（退勤打刻トリガ）/ 据置端末フロー / 移行スクリプト（第11章）
 
 詳細な設計判断は `docs/` を参照。
