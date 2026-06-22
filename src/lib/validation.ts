@@ -101,3 +101,31 @@ export const monthlySummarySchema = z.object({
 export const lineLoginSchema = z.object({
   id_token: z.string().min(1),
 });
+
+/** マスタ管理（管理者）: ドライバー作成/更新 */
+export const driverCreateSchema = z.object({
+  code: z.string().min(1, "業務IDは必須"),
+  name: z.string().min(1, "氏名は必須"),
+  default_vehicle_no: z.string().optional(),
+  affiliation: z.string().optional(),
+  line_user_id: z.string().optional(),
+});
+export const driverUpdateSchema = z.object({
+  name: z.string().min(1).optional(),
+  default_vehicle_no: z.string().nullable().optional(),
+  affiliation: z.string().nullable().optional(),
+  line_user_id: z.string().nullable().optional(),
+  is_active: z.boolean().optional(),
+});
+
+/** マスタ管理（管理者）: 車両作成/更新 */
+export const vehicleCreateSchema = z.object({
+  vehicle_no: z.string().min(1, "車番は必須"),
+  name: z.string().optional(),
+  kind: z.string().optional(),
+});
+export const vehicleUpdateSchema = z.object({
+  name: z.string().nullable().optional(),
+  kind: z.string().nullable().optional(),
+  is_active: z.boolean().optional(),
+});
