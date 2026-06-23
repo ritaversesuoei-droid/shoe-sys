@@ -6,11 +6,29 @@ import { z } from "zod";
  * - サーバー専用値（service_role, LINE トークン）は server 側でのみ参照する。
  */
 
+// 空文字や不正URL（プレースホルダ等）は「未設定」とみなす（任意項目でビルドを落とさない）。
+const optionalUrl = z.preprocess((v) => {
+  if (typeof v !== "string") return undefined;
+  const s = v.trim();
+  if (!s) return undefined;
+  try {
+    new URL(s);
+    return s;
+  } catch {
+    return undefined;
+  }
+}, z.string().optional());
+
+const optionalText = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() ? v.trim() : undefined),
+  z.string().optional(),
+);
+
 const clientSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
-  NEXT_PUBLIC_LIFF_ID: z.string().optional(),
-  NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+  NEXT_PUBLIC_LIFF_ID: optionalText,
+  NEXT_PUBLIC_APP_URL: optionalUrl,
 });
 
 export const clientEnv = clientSchema.parse({
