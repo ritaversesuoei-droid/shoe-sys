@@ -20,6 +20,7 @@ export interface DraftLeg {
   receipts: string | null;
   extra_work: string | null;
   meter: number | null;
+  confirmed: boolean; // 運行ルート○確認（4.6）
 }
 export interface DraftRest {
   seq: number;
@@ -164,6 +165,7 @@ export async function assembleDailyReport(
           receipts: l.receipts,
           extra_work: l.extra_work,
           meter: l.meter,
+          confirmed: l.confirmed,
         }),
       );
     const rests = (existing.daily_report_rests ?? [])
@@ -222,6 +224,7 @@ export async function assembleDailyReport(
             receipts: it.receipts,
             extra_work: null,
             meter: null,
+            confirmed: false,
           });
         }
       } else {
@@ -234,6 +237,7 @@ export async function assembleDailyReport(
           receipts: null,
           extra_work: null,
           meter: null,
+          confirmed: false,
         });
       }
     } else if (e.event_type === "unloading") {
@@ -247,6 +251,7 @@ export async function assembleDailyReport(
         receipts: items.map((it) => it.receipts).filter(Boolean).join(", ") || null,
         extra_work: null,
         meter: null,
+        confirmed: false,
       });
     }
   }
@@ -323,7 +328,11 @@ export function validateForConfirm(input: SaveDailyReportInput): string[] {
     else if (Date.parse(r.end_at) <= Date.parse(r.start_at))
       errs.push("休憩の終了が開始以前のカードがあります");
   }
-  // TODO(運行ルート確認 4.6): 全legの○確認チェック（daily_report_legs.confirmed 列を将来追加）
+  // 運行ルート確認(4.6): 全明細(leg)の○確認が必須
+  const legs = input.legs ?? [];
+  if (legs.length && legs.some((l) => l.confirmed !== true)) {
+    errs.push("運行ルートの確認(○)が未完了の明細があります");
+  }
   return Array.from(new Set(errs));
 }
 
@@ -414,6 +423,7 @@ export async function saveDailyReport(
       receipts: l.receipts ?? null,
       extra_work: l.extra_work ?? null,
       meter: l.meter ?? null,
+      confirmed: l.confirmed ?? false,
     }));
     const { error } = await sb.from("daily_report_legs").insert(rows);
     if (error) throw error;

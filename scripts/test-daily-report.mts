@@ -93,7 +93,27 @@ async function main() {
   check("不備のある確定はAppError(422)で拒否", threw, msg);
   check("メッセージに終了メーター/休憩90分", /終了メーター/.test(msg) && /90分/.test(msg), msg);
 
-  console.log("\n[4] 確定（適正）");
+  console.log("\n[3b] 運行ルート○確認 未完了は確定不可（4.6）");
+  let threwLeg = false;
+  let msgLeg = "";
+  try {
+    await saveDailyReport(sb, A, {
+      id: saved.id ?? undefined,
+      report_date: "2026-06-20",
+      status: "confirmed",
+      vehicle_no: "1001",
+      meter_start: 1000,
+      meter_end: 1300,
+      legs: gen!.legs, // confirmed=false のまま
+      rests: [{ rest_type: "rest", place: "SA", start_at: "2026-06-20T11:00:00+09:00", end_at: "2026-06-20T13:00:00+09:00", duration_min: 120 }],
+    });
+  } catch (e) {
+    threwLeg = true;
+    msgLeg = e instanceof AppError ? e.message : String(e);
+  }
+  check("○確認 未完了は確定拒否", threwLeg && /運行ルート/.test(msgLeg), msgLeg);
+
+  console.log("\n[4] 確定（適正・全leg ○確認）");
   const confirmed = await saveDailyReport(sb, A, {
     id: saved.id ?? undefined,
     report_date: "2026-06-20",
@@ -101,7 +121,7 @@ async function main() {
     vehicle_no: "1001",
     meter_start: 1000,
     meter_end: 1300,
-    legs: gen!.legs,
+    legs: gen!.legs.map((l) => ({ ...l, confirmed: true })),
     rests: [
       { rest_type: "rest", place: "SA海老名", start_at: "2026-06-20T11:00:00+09:00", end_at: "2026-06-20T13:00:00+09:00", duration_min: 120 },
     ],

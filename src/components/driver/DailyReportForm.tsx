@@ -11,6 +11,7 @@ interface Leg {
   receipts?: string;
   extra_work?: string;
   meter?: number | null;
+  confirmed?: boolean;
 }
 interface Rest {
   rest_type: "rest" | "sleep";
@@ -197,9 +198,23 @@ export function DailyReportForm() {
               <input placeholder="受領書" value={l.receipts ?? ""} onChange={(e) => setLegs((p) => p.map((x, idx) => idx === i ? { ...x, receipts: e.target.value } : x))} className="rounded border border-slate-300 px-2 py-1 text-sm" />
               <input placeholder="付帯作業" value={l.extra_work ?? ""} onChange={(e) => setLegs((p) => p.map((x, idx) => idx === i ? { ...x, extra_work: e.target.value } : x))} className="rounded border border-slate-300 px-2 py-1 text-sm" />
             </div>
-            <button onClick={() => setLegs((p) => p.filter((_, idx) => idx !== i))} className="mt-1 text-xs text-red-500">削除</button>
+            <div className="mt-1 flex items-center justify-between">
+              <label className={`flex items-center gap-1 text-sm font-medium ${l.confirmed ? "text-green-700" : "text-slate-500"}`}>
+                <input
+                  type="checkbox"
+                  checked={l.confirmed ?? false}
+                  onChange={(e) => setLegs((p) => p.map((x, idx) => idx === i ? { ...x, confirmed: e.target.checked } : x))}
+                  className="h-4 w-4"
+                />
+                ○確認（運行ルート）
+              </label>
+              <button onClick={() => setLegs((p) => p.filter((_, idx) => idx !== i))} className="text-xs text-red-500">削除</button>
+            </div>
           </div>
         ))}
+        {legs.length > 0 && legs.some((l) => !l.confirmed) && (
+          <p className="text-xs text-orange-600">※ 確定には全明細の「○確認」が必要です</p>
+        )}
       </section>
 
       <section className="mt-5">

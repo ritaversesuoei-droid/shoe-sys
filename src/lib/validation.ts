@@ -66,6 +66,7 @@ export const saveDailyReportSchema = z.object({
         receipts: z.string().optional(),
         extra_work: z.string().optional(),
         meter: z.number().optional(),
+        confirmed: z.boolean().optional(),
       }),
     )
     .optional(),

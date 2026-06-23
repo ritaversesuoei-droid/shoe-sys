@@ -178,6 +178,7 @@ export type Database = {
       daily_report_legs: {
         Row: {
           cargo: string | null
+          confirmed: boolean
           created_at: string
           daily_report_id: string
           destination_spot: string | null
@@ -191,6 +192,7 @@ export type Database = {
         }
         Insert: {
           cargo?: string | null
+          confirmed?: boolean
           created_at?: string
           daily_report_id: string
           destination_spot?: string | null
@@ -204,6 +206,7 @@ export type Database = {
         }
         Update: {
           cargo?: string | null
+          confirmed?: boolean
           created_at?: string
           daily_report_id?: string
           destination_spot?: string | null
