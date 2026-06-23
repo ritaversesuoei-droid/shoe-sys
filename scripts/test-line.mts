@@ -11,7 +11,7 @@ const check = (label: string, cond: boolean, detail?: unknown) =>
 
 console.log("\n[業務報告 Flex]");
 const report = buildReportFlex({
-  driverName: "庄栄 太郎",
+  driverName: "昭栄 太郎",
   title: "積込完了",
   vehicleNo: "1001",
   place: "東京都江東区",
@@ -22,18 +22,18 @@ const report = buildReportFlex({
   mapUrl: "https://www.google.com/maps?q=35.6,139.8",
 });
 check("type=flex", report.type === "flex");
-check("altText に種別と氏名", report.altText.includes("積込完了") && report.altText.includes("庄栄 太郎"));
+check("altText に種別と氏名", report.altText.includes("積込完了") && report.altText.includes("昭栄 太郎"));
 check("bubble body を持つ", report.contents.type === "bubble" && !!(report.contents as any).body);
 check("地図ボタン(footer)あり", !!(report.contents as any).footer);
 
 console.log("\n[警告 Flex]");
 const warn = buildWarningFlex({
-  driverName: "庄栄 次郎",
+  driverName: "昭栄 次郎",
   workDate: "2026-06-20",
   violations: [{ message: "拘束時間が上限(15:00)を超過" }, { message: "休息期間が下限(9:00)未満" }],
 });
 check("type=flex", warn.type === "flex");
-check("altText に警告対象", warn.altText.includes("庄栄 次郎") && warn.altText.includes("2026-06-20"));
+check("altText に警告対象", warn.altText.includes("昭栄 次郎") && warn.altText.includes("2026-06-20"));
 check("違反内容が本文に含まれる", JSON.stringify(warn.contents).includes("拘束時間が上限"));
 
 console.log(`\n===== 結果: PASS ${pass} / FAIL ${fail} =====`);

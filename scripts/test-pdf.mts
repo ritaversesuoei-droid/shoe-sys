@@ -17,7 +17,7 @@ async function main() {
   console.log("\n[1] テンプレートHTML生成");
   const html = renderDailyReportHtml({
     reportDate: "2026-06-20",
-    driverName: "庄栄 太郎",
+    driverName: "昭栄 太郎",
     driverCode: "01",
     vehicleNo: "1001",
     departureAt: "2026-06-20T06:00:00+09:00",

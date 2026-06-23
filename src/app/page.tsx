@@ -11,7 +11,7 @@ export default function Home() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 p-8">
       <div>
-        <h1 className="text-2xl font-bold">庄栄運輸 運行・勤怠管理</h1>
+        <h1 className="text-2xl font-bold">昭栄運輸 運行・勤怠管理</h1>
         <p className="mt-1 text-sm text-slate-500">
           運行打刻・勤怠集計・改善基準告示判定
         </p>

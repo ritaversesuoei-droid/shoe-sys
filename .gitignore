@@ -46,3 +46,6 @@ migration/input/
 
 # 生成PDF（正本はmd・npm run docs:pdf で再生成）
 docs/*.pdf
+
+# テスト依頼資料（認証情報を含むため非コミット）
+docs/test-guide.md

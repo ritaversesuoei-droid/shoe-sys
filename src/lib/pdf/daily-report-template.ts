@@ -150,7 +150,7 @@ export function renderDailyReportHtml(data: DailyReportPdfData): string {
   <div class="box" style="min-height:24px"><span class="label">特記事項</span> ${esc(data.notes)}</div>
 
   <div class="foot">
-    <div class="label">庄栄運輸　運行・勤怠管理システム</div>
+    <div class="label">昭栄運輸　運行・勤怠管理システム</div>
     <div style="display:flex; gap:8px">
       <div class="sign"><div class="label">運転者</div></div>
       <div class="sign"><div class="label">運行管理者 確認印</div></div>

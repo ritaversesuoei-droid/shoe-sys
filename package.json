@@ -2,7 +2,7 @@
   "name": "shoei-unko-kintai",
   "version": "0.1.0",
   "private": true,
-  "description": "庄栄運輸 運行・勤怠管理システム (Next.js + Supabase + LINE)",
+  "description": "昭栄運輸 運行・勤怠管理システム (Next.js + Supabase + LINE)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
