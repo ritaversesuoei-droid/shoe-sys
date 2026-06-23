@@ -4,6 +4,10 @@ import { ok, fail, handle } from "@/lib/api/response";
 import { saveDailyReportSchema } from "@/lib/validation";
 import { assembleDailyReport, saveDailyReport } from "@/lib/operations/daily-report";
 
+// 確定(POST)時にサーバーでPDFを生成（Chrome起動）するためNode＋長めのタイムアウト
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 /**
  * GET /api/daily-reports?date=yyyy-MM-dd  日報読込（仕様書 F-10 / 4.6）
  *   既存日報があれば復元、無ければ event の積込・荷卸から明細を自動生成し、

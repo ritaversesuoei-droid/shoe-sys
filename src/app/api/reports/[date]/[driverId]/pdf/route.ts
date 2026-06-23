@@ -3,6 +3,10 @@ import { getSessionContext, AuthError } from "@/lib/auth";
 import { ok, fail, handle } from "@/lib/api/response";
 import { generateDailyReportPdf } from "@/lib/pdf/generate";
 
+// PDFはChrome起動を伴うためNodeランタイム＋長めのタイムアウト（サーバーレス対応）
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 /**
  * POST /api/reports/:date/:driverId/pdf  日報PDF生成（仕様書 F-17, 8.1）
  *   日報を組立 → B5 HTMLテンプレート → Chrome(puppeteer-core)でPDF化 →

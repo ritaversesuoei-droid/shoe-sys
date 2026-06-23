@@ -1,12 +1,14 @@
 import "server-only";
 
-import puppeteer from "puppeteer-core";
+import puppeteer, { type Browser } from "puppeteer-core";
 import { AppError } from "@/lib/errors";
 
 /**
  * HTML → PDF（仕様書 F-17 / 13章G: Puppeteer）。
- * Chromium のフルDLを避けるため puppeteer-core を使用し、実行ファイルは
- * 環境変数 PUPPETEER_EXECUTABLE_PATH か、OS既定の探索パスから解決する。
+ * 実行環境に応じてブラウザを解決する:
+ *   1. PUPPETEER_EXECUTABLE_PATH（明示。コンテナ/セルフホストで Chrome を指す）
+ *   2. サーバーレス（Vercel / AWS Lambda）→ @sparticuz/chromium（同梱Chromium）
+ *   3. ローカル開発 → OS既定の Chrome 探索パス
  */
 const MAC_CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const LINUX_CANDIDATES = [
@@ -15,27 +17,42 @@ const LINUX_CANDIDATES = [
   "/usr/bin/chromium-browser",
 ];
 
-function resolveExecutable(): string {
-  const env = process.env.PUPPETEER_EXECUTABLE_PATH;
-  if (env) return env;
-  if (process.platform === "darwin") return MAC_CHROME;
-  return LINUX_CANDIDATES[0]!;
+const isServerless = (): boolean =>
+  !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.AWS_EXECUTION_ENV);
+
+async function launchBrowser(): Promise<Browser> {
+  const envPath = process.env.PUPPETEER_EXECUTABLE_PATH;
+
+  // (2) サーバーレス: 明示パスが無ければ @sparticuz/chromium を使用（動的import=ローカルでは読み込まない）
+  if (!envPath && isServerless()) {
+    const chromium = (await import("@sparticuz/chromium")).default;
+    return puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    });
+  }
+
+  // (1)(3) 明示パス or OS既定
+  const executablePath =
+    envPath ?? (process.platform === "darwin" ? MAC_CHROME : LINUX_CANDIDATES[0]!);
+  return puppeteer.launch({
+    executablePath,
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
 }
 
 export async function htmlToPdf(html: string): Promise<Uint8Array> {
-  const executablePath = resolveExecutable();
-  let browser;
+  let browser: Browser;
   try {
-    browser = await puppeteer.launch({
-      executablePath,
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
+    browser = await launchBrowser();
   } catch (e) {
     throw new AppError(
-      `PDF生成用ブラウザを起動できません（PUPPETEER_EXECUTABLE_PATH を確認）: ${
-        e instanceof Error ? e.message : String(e)
-      }`,
+      `PDF生成用ブラウザを起動できません（サーバーレスは @sparticuz/chromium、` +
+        `セルフホストは PUPPETEER_EXECUTABLE_PATH を確認）: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
       500,
     );
   }
