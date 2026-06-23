@@ -10,7 +10,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test:punch": "node --env-file=.env.local --import tsx scripts/test-punch.mts",
-    "test:daily": "node --env-file=.env.local --import tsx scripts/test-daily-report.mts",
+    "test:daily": "node --conditions=react-server --env-file=.env.local --import tsx scripts/test-daily-report.mts",
     "db:diff": "supabase db diff",
     "db:push": "supabase db push",
     "db:reset": "supabase db reset",
@@ -28,7 +28,7 @@
     "test:weekly": "node --env-file=.env.local --import tsx scripts/test-weekly.mts",
     "test:photo": "node --env-file=.env.local --import tsx scripts/test-photo.mts",
     "smoke": "node --import tsx scripts/smoke.mts",
-    "test:all": "npm run test:punch && npm run test:daily && npm run test:pdf && npm run test:line && npm run test:board && npm run test:monthly && npm run test:customer && npm run test:migrate && npm run test:warning && npm run test:weekly && npm run test:photo && npm run test:masters && npm run test:settings && npm run test:migrate-files",
+    "test:all": "npm run test:punch && npm run test:daily && npm run test:pdf && npm run test:line && npm run test:board && npm run test:monthly && npm run test:customer && npm run test:migrate && npm run test:warning && npm run test:weekly && npm run test:photo && npm run test:masters && npm run test:settings && npm run test:migrate-files && npm run test:holiday",
     "test:masters": "node --env-file=.env.local --import tsx scripts/test-masters.mts",
     "test:settings": "node --env-file=.env.local --import tsx scripts/test-settings.mts",
     "migrate:shifts": "node --env-file=.env.local --import tsx scripts/migrate/import-shifts.mts",
@@ -50,6 +50,7 @@
     "puppeteer-core": "^23.11.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "server-only": "^0.0.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {

@@ -107,9 +107,20 @@ async function main() {
     ],
   });
   check("ステータスがconfirmed", confirmed.status === "confirmed");
-  const { data: row } = await sb.from("daily_reports").select("confirmed_at, rest_total_min").eq("id", saved.id!).single();
+  const { data: row } = await sb.from("daily_reports").select("confirmed_at, rest_total_min, pdf_path").eq("id", saved.id!).single();
   check("confirmed_atが記録", !!row?.confirmed_at, row?.confirmed_at);
   check("休憩合計120分が記録", row?.rest_total_min === 120, row?.rest_total_min);
+
+  // 確定で 紐付く勤務へ休憩反映 → 拘束/労働を再計算（F-17の前段）
+  const { data: shiftA } = await sb
+    .from("shifts")
+    .select("rest_time, restraint_min, labor_min")
+    .eq("id", gen!.shift_id!)
+    .single();
+  const restMinA = shiftA ? Number(shiftA.rest_time.split(":")[0]) * 60 + Number(shiftA.rest_time.split(":")[1]) : -1;
+  check("確定で勤務の休憩=120分が反映", restMinA === 120, shiftA?.rest_time);
+  check("労働=拘束−休憩 で再計算", shiftA?.labor_min === (shiftA?.restraint_min ?? 0) - 120, shiftA);
+  check("確定でPDFがサーバー生成(pdf_path)", !!row?.pdf_path, row?.pdf_path);
 
   console.log("\n[5] 長距離運行: 休憩跨ぎの連結 + 睡眠カード生成");
   await processPunch(sb, C, punch("departure", "2026-06-22T06:00:00+09:00", { vehicle_no: "2001" }));

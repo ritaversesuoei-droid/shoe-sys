@@ -283,6 +283,8 @@ export type Database = {
           meter_end: number | null
           meter_start: number | null
           notes: string | null
+          pdf_generated_at: string | null
+          pdf_path: string | null
           report_date: string
           rest_total_min: number
           return_at: string | null
@@ -304,6 +306,8 @@ export type Database = {
           meter_end?: number | null
           meter_start?: number | null
           notes?: string | null
+          pdf_generated_at?: string | null
+          pdf_path?: string | null
           report_date: string
           rest_total_min?: number
           return_at?: string | null
@@ -325,6 +329,8 @@ export type Database = {
           meter_end?: number | null
           meter_start?: number | null
           notes?: string | null
+          pdf_generated_at?: string | null
+          pdf_path?: string | null
           report_date?: string
           rest_total_min?: number
           return_at?: string | null

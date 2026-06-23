@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { AppError } from "@/lib/errors";
 import { diffMinutes } from "@/lib/time";
+import { recomputeShift, minToInterval } from "@/lib/operations/shift";
 import type { SaveDailyReportInput } from "@/lib/validation";
 
 type SB = SupabaseClient<Database>;
@@ -343,20 +344,36 @@ export async function saveDailyReport(
 
   // 1運行1日報: id 明示が無ければ driver+date で既存を特定（4.6）
   let reportId = input.id ?? null;
+  let existingShiftId: string | null = null;
   if (!reportId) {
     const { data: ex } = await sb
       .from("daily_reports")
-      .select("id")
+      .select("id, shift_id")
       .eq("driver_id", driverId)
       .eq("report_date", input.report_date)
       .limit(1)
       .maybeSingle();
     reportId = ex?.id ?? null;
+    existingShiftId = ex?.shift_id ?? null;
+  }
+
+  // 紐付く勤務: 明示 → 既存日報 → 当日の勤務 の順で特定（確定時の休憩反映/PDFに使用）
+  let shiftId = input.shift_id ?? existingShiftId ?? null;
+  if (!shiftId) {
+    const { data: sh } = await sb
+      .from("shifts")
+      .select("id")
+      .eq("driver_id", driverId)
+      .eq("work_date", input.report_date)
+      .order("clock_in_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    shiftId = sh?.id ?? null;
   }
 
   const header = {
     driver_id: driverId,
-    shift_id: input.shift_id ?? null,
+    shift_id: shiftId,
     report_date: input.report_date,
     status,
     vehicle_no: input.vehicle_no ?? null,
@@ -415,7 +432,27 @@ export async function saveDailyReport(
     if (error) throw error;
   }
 
-  // TODO: 確定時は紐付く勤務へ休憩(rest_total_min)を反映し拘束/労働を再計算 → PDF生成(F-17)
+  // 確定時: 紐付く勤務へ休憩(rest_total_min)を反映 → 拘束/労働/違反を再計算 → PDFをサーバー生成（F-17/18）
+  if (status === "confirmed") {
+    if (shiftId) {
+      await sb.from("shifts").update({ rest_time: minToInterval(restTotal) }).eq("id", shiftId);
+      await recomputeShift(sb, shiftId);
+    }
+    // PDFはベストエフォート（Chrome未導入環境でも確定自体は失敗させない）
+    try {
+      const { generateDailyReportPdf } = await import("@/lib/pdf/generate");
+      const pdf = await generateDailyReportPdf(sb, driverId, input.report_date);
+      if (pdf) {
+        await sb
+          .from("daily_reports")
+          .update({ pdf_path: pdf.path, pdf_generated_at: new Date().toISOString() })
+          .eq("id", reportId);
+      }
+    } catch (e) {
+      console.warn("[daily-report] PDFサーバー生成をスキップ:", e instanceof Error ? e.message : e);
+    }
+  }
+
   const saved = await assembleDailyReport(sb, driverId, input.report_date);
   if (!saved) throw new Error("保存後の読込に失敗しました");
   return saved;
