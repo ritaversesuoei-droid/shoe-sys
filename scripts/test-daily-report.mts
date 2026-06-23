@@ -156,6 +156,26 @@ async function main() {
   await processPunch(sb, A, punch("clock_out", "2026-06-25T18:00:00+09:00", { vehicle_no: "1001" }));
   const gen2 = await assembleDailyReport(sb, A, "2026-06-25");
   check("開始メーターが前回終了(1300)で補完", gen2?.meter_start === 1300, gen2?.meter_start);
+
+  console.log("\n[7] 荷卸→積込の引き当て（表記揺れ吸収・バックフィル）");
+  const B = await makeDriver(`DB${s % 100000}`, `TEST_DR_B_${s}`);
+  await processPunch(sb, B, punch("departure", "2026-06-26T06:00:00+09:00", { vehicle_no: "3001" }));
+  await processPunch(sb, B, punch("loading", "2026-06-26T08:00:00+09:00", {
+    vehicle_no: "3001",
+    address: "名古屋市港区",
+    items: [{ shipper: "荷主Z", delivery_spot: "横浜市港北区", quantity: "8", weight: "3t" }],
+  }));
+  await processPunch(sb, B, punch("unloading", "2026-06-26T15:00:00+09:00", { vehicle_no: "3001", address: "横浜市港北区 日産工場" }));
+  await processPunch(sb, B, punch("clock_out", "2026-06-26T18:00:00+09:00", { vehicle_no: "3001" }));
+  const trip2 = await assembleDailyReport(sb, B, "2026-06-26");
+  const uLeg = trip2?.legs.find((l) => (l.destination_spot ?? "").includes("日産"));
+  check("荷卸明細が存在", !!uLeg, trip2?.legs.length);
+  check("荷卸へ荷主を引き当て(荷主Z)", uLeg?.shipper === "荷主Z", uLeg?.shipper);
+  check("荷卸へ積地を引き当て(名古屋市港区)", uLeg?.origin_spot === "名古屋市港区", uLeg?.origin_spot);
+
+  // 多ドロップ・住所不一致では推測しない（曖昧回避）
+  const noMatch = gen?.legs.find((l) => l.destination_spot?.includes("横浜")); // [1]の荷卸(横浜市/積込は江東区・品川区)
+  check("曖昧時(2積込)は荷主を推測しない", noMatch ? noMatch.shipper === null : true, noMatch?.shipper);
 }
 
 async function cleanup() {

@@ -207,15 +207,24 @@ export async function assembleDailyReport(
   const end = shifts[shifts.length - 1]!;
   const vehicleNo = events.find((e) => e.vehicle_no)?.vehicle_no ?? null;
 
-  // 明細: 積込/荷卸 を時系列で展開（荷卸→過去積込の引き当ては TODO: 表記揺れ吸収）
+  // 表記揺れ吸収: 全角/半角・空白・記号を除去して比較キー化（地名照合用）
+  const normSpot = (s: string | null): string =>
+    (s ?? "").normalize("NFKC").replace(/[\s　（）()「」『』【】・,，、.。\-ー―~〜＝=]/g, "").toLowerCase();
+  // 着地(予定/積地)と荷卸住所が、どちらかを含む関係なら同一地点とみなす（短すぎる一致は除外）
+  const spotMatch = (a: string, b: string): boolean =>
+    a.length >= 2 && b.length >= 2 && (a.includes(b) || b.includes(a));
+
+  // 明細: 積込/荷卸 を時系列で展開。荷卸は対応する積込（荷主・積地）を引き当ててバックフィル（FIFO/非破壊）。
   const legs: DraftLeg[] = [];
+  // 引き当て元の積込明細プール（着地キーで荷卸と照合）。used で多重引き当てを防ぐ。
+  const loadingPool: { leg: DraftLeg; destKey: string; used: boolean }[] = [];
   let seq = 1;
   for (const e of events) {
     if (e.event_type === "loading") {
       const items = e.event_items ?? [];
       if (items.length) {
         for (const it of items) {
-          legs.push({
+          const leg: DraftLeg = {
             seq: seq++,
             shipper: it.shipper,
             origin_spot: e.address,
@@ -225,7 +234,9 @@ export async function assembleDailyReport(
             extra_work: null,
             meter: null,
             confirmed: false,
-          });
+          };
+          legs.push(leg);
+          loadingPool.push({ leg, destKey: normSpot(it.delivery_spot), used: false });
         }
       } else {
         legs.push({
@@ -242,7 +253,7 @@ export async function assembleDailyReport(
       }
     } else if (e.event_type === "unloading") {
       const items = e.event_items ?? [];
-      legs.push({
+      const uLeg: DraftLeg = {
         seq: seq++,
         shipper: null,
         origin_spot: null,
@@ -252,7 +263,23 @@ export async function assembleDailyReport(
         extra_work: null,
         meter: null,
         confirmed: false,
-      });
+      };
+      legs.push(uLeg);
+
+      // 荷卸住所に対応する積込を引き当て: 着地キー一致を優先。一致が無くても
+      // 未引当の積込が1件だけなら一意なのでそれを採用（複数残る曖昧時は推測しない）。
+      const uKey = normSpot(e.address);
+      const unused = loadingPool.filter((p) => !p.used);
+      const matched =
+        (uKey.length >= 2 ? unused.find((p) => spotMatch(p.destKey, uKey)) : undefined) ??
+        (unused.length === 1 ? unused[0] : undefined);
+      if (matched) {
+        matched.used = true;
+        // 荷卸行に 荷主/積地/物積 をバックフィル（空欄のみ・元データは保持）
+        uLeg.shipper = uLeg.shipper ?? matched.leg.shipper;
+        uLeg.origin_spot = uLeg.origin_spot ?? matched.leg.origin_spot;
+        uLeg.cargo = uLeg.cargo ?? matched.leg.cargo;
+      }
     }
   }
 
