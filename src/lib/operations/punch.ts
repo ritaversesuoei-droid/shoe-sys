@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { PunchError } from "@/lib/errors";
 import { findOpenShift, openShift, closeShift, type CloseResult } from "./shift";
+import { enrichLocation } from "./customer";
 
 type SB = SupabaseClient<Database>;
 type EventType = Database["public"]["Tables"]["events"]["Row"]["event_type"];
@@ -39,6 +40,8 @@ export interface PunchResult {
   shiftId: string | null;
   deduped?: boolean;
   close?: CloseResult;
+  address?: string | null;   // F-22 補完後の住所
+  customerId?: string | null; // F-22 推定した客先
 }
 
 const OPENS_SHIFT: EventType[] = ["departure", "leg_departure"];
@@ -90,6 +93,24 @@ export async function processPunch(
     shiftId = open?.id ?? null;
   }
 
+  // F-22: 住所が無ければ逆ジオで補完、住所から客先名を推定（明示指定は尊重し、欠損のみ補完）。
+  // 逆ジオ/学習は best-effort（失敗しても打刻自体は通す）。
+  let address = input.address ?? null;
+  let customerId = input.customer_id ?? null;
+  if ((!address || !customerId) && (input.address || (input.lat != null && input.lng != null))) {
+    try {
+      const en = await enrichLocation(sb, {
+        lat: input.lat ?? null,
+        lng: input.lng ?? null,
+        address: input.address ?? null,
+      });
+      address = address ?? en.address;
+      customerId = customerId ?? en.customerId;
+    } catch (e) {
+      console.warn("[punch] 位置補完(F-22)をスキップ:", e instanceof Error ? e.message : e);
+    }
+  }
+
   // events 挿入
   const { data: inserted, error: insErr } = await sb
     .from("events")
@@ -101,8 +122,8 @@ export async function processPunch(
       vehicle_no: input.vehicle_no ?? null,
       lat: input.lat ?? null,
       lng: input.lng ?? null,
-      address: input.address ?? null,
-      customer_id: input.customer_id ?? null,
+      address,
+      customer_id: customerId,
       checks: input.checks ?? null,
       alcohol_checked: input.alcohol_checked ?? null,
       note: input.note ?? null,
@@ -145,6 +166,6 @@ export async function processPunch(
     close = await closeShift(sb, open, input.occurred_at);
   }
 
-  // TODO: 逆ジオコーディング・客先名推定(F-22) / LINE通知(F-16)
-  return { eventId: inserted.id, shiftId, close };
+  // LINE通知(F-16)は呼び出し側(route)で実施（業務報告/違反警告, 未設定時スキップ）
+  return { eventId: inserted.id, shiftId, close, address, customerId };
 }
