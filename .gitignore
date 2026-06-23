@@ -43,3 +43,6 @@ supabase/.temp
 
 # 移行元データ（個人情報含むため除外）
 migration/input/
+
+# 生成PDF（正本はmd・npm run docs:pdf で再生成）
+docs/*.pdf
