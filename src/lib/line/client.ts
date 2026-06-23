@@ -41,6 +41,15 @@ export async function pushToAdmin(
   await admin.rpc("increment_line_usage", { p_month_key: monthKey, p_delta: messages.length });
 }
 
+/** Webhook 応答（replyToken で返信 / 仕様書 8.3）。トークン未設定なら例外。 */
+export async function replyMessage(
+  replyToken: string,
+  messages: MA.Message[],
+): Promise<void> {
+  const client = getMessagingClient();
+  await client.replyMessage({ replyToken, messages });
+}
+
 /** LINE ID トークン検証（LIFF ログイン: ドライバー認証 / 仕様書 F-01）。 */
 export async function verifyLineIdToken(
   idToken: string,
