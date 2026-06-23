@@ -36,7 +36,8 @@
     "test:migrate-files": "node --env-file=.env.local --import tsx scripts/test-migrate-files.mts",
     "migrate:all": "node --env-file=.env.local --import tsx scripts/migrate/import-all.mts",
     "migrate:events": "node --env-file=.env.local --import tsx scripts/migrate/import-events.mts",
-    "migrate:editinput": "node --env-file=.env.local --import tsx scripts/migrate/import-editinput.mts"
+    "migrate:editinput": "node --env-file=.env.local --import tsx scripts/migrate/import-editinput.mts",
+    "test:holiday": "node --env-file=.env.local --import tsx scripts/test-holiday.mts"
   },
   "dependencies": {
     "@line/bot-sdk": "^9.5.0",

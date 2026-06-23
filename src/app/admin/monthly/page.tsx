@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getMonthlySummary } from "@/lib/operations/monthly-summary";
+import { holidaysOfYear, type DayClass } from "@/lib/holidays";
 import { to_month_key } from "@/lib/datekey";
+import HolidayManager from "@/components/admin/HolidayManager";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +40,15 @@ export default async function MonthlyPage({
 
   const supabase = await createClient();
   const summary = await getMonthlySummary(supabase, monthKey);
+
+  // 休日設定（当月の祝日＋手修正）
+  const mm = monthKey.slice(4, 6);
+  const monthHolidays = Array.from(holidaysOfYear(Number(monthKey.slice(0, 4))).entries())
+    .filter(([d]) => d.slice(5, 7) === mm)
+    .map(([date, name]) => ({ date, name }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const { data: ovRow } = await supabase.from("app_settings").select("value").eq("key", "holiday_overrides").maybeSingle();
+  const overrides = (ovRow?.value as Record<string, DayClass>) ?? {};
 
   return (
     <main className="mx-auto max-w-6xl p-6">
@@ -94,8 +105,10 @@ export default async function MonthlyPage({
         </div>
       )}
       <p className="mt-3 text-xs text-slate-400">
-        残業=労働−所定(8h)の累計、休日労働=土日（祝日連携はTODO）。時刻は H:MM。
+        残業=労働−所定(8h)の累計、休日労働=休日(土日・祝日・手修正)の労働。時刻は H:MM。
       </p>
+
+      <HolidayManager month={monthKey} holidays={monthHolidays} initialOverrides={overrides} />
     </main>
   );
 }

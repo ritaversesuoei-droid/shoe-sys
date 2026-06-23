@@ -7,7 +7,8 @@ import { getMonthlySummary } from "@/lib/operations/monthly-summary";
 /**
  * POST /api/admin/monthly-summary  月次集計（仕様書 F-14, 8.1）
  *   ドライバー別に 出勤日数・拘束・労働・残業・休日労働・深夜・違反件数を集計、日別詳細を展開。
- *   TODO: 祝日カレンダー連携 / 休日区分の手修正→再計算 / 拘束14h超「週2回まで」週次判定。
+ *   休日労働=休日(土日・祝日・手修正)の労働。祝日は src/lib/holidays.ts で算出、手修正は
+ *   app_settings('holiday_overrides')（PATCH /api/admin/holidays）。所定は app_settings('payroll')。
  */
 export async function POST(request: Request) {
   return handle(async () => {
