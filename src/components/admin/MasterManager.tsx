@@ -82,10 +82,10 @@ export function MasterManager() {
       <section>
         <h2 className="mb-3 text-lg font-semibold">ドライバーマスタ（{drivers.length}）</h2>
         <div className="mb-3 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-5">
-          <input placeholder="業務ID*" value={nd.code} onChange={(e) => setNd({ ...nd, code: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-          <input placeholder="氏名*" value={nd.name} onChange={(e) => setNd({ ...nd, name: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-          <input placeholder="既定車番" value={nd.default_vehicle_no} onChange={(e) => setNd({ ...nd, default_vehicle_no: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-          <input placeholder="所属" value={nd.affiliation} onChange={(e) => setNd({ ...nd, affiliation: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
+          <input placeholder="業務ID*" value={nd.code} onChange={(e) => setNd({ ...nd, code: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
+          <input placeholder="氏名*" value={nd.name} onChange={(e) => setNd({ ...nd, name: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
+          <input placeholder="既定車番" value={nd.default_vehicle_no} onChange={(e) => setNd({ ...nd, default_vehicle_no: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
+          <input placeholder="所属" value={nd.affiliation} onChange={(e) => setNd({ ...nd, affiliation: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
           <button
             onClick={() => run(async () => {
               await api("/api/admin/drivers", "POST", {
@@ -95,7 +95,7 @@ export function MasterManager() {
               });
               setNd({ code: "", name: "", default_vehicle_no: "", affiliation: "" });
             })}
-            className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white"
+            className="rounded-xl bg-slate-900 px-4 py-2.5 text-base font-bold text-white"
           >
             追加
           </button>
@@ -127,15 +127,15 @@ export function MasterManager() {
       <section>
         <h2 className="mb-3 text-lg font-semibold">車両マスタ（{vehicles.length}）</h2>
         <div className="mb-3 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-4">
-          <input placeholder="車番*" value={nv.vehicle_no} onChange={(e) => setNv({ ...nv, vehicle_no: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-          <input placeholder="通称" value={nv.name} onChange={(e) => setNv({ ...nv, name: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-          <input placeholder="区分(大型/中型 等)" value={nv.kind} onChange={(e) => setNv({ ...nv, kind: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
+          <input placeholder="車番*" value={nv.vehicle_no} onChange={(e) => setNv({ ...nv, vehicle_no: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
+          <input placeholder="通称" value={nv.name} onChange={(e) => setNv({ ...nv, name: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
+          <input placeholder="区分(大型/中型 等)" value={nv.kind} onChange={(e) => setNv({ ...nv, kind: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
           <button
             onClick={() => run(async () => {
               await api("/api/admin/vehicles", "POST", { vehicle_no: nv.vehicle_no, name: nv.name || undefined, kind: nv.kind || undefined });
               setNv({ vehicle_no: "", name: "", kind: "" });
             })}
-            className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white"
+            className="rounded-xl bg-slate-900 px-4 py-2.5 text-base font-bold text-white"
           >
             追加
           </button>
@@ -166,15 +166,15 @@ export function MasterManager() {
       <section>
         <h2 className="mb-3 text-lg font-semibold">客先マスタ（{customers.length}）</h2>
         <div className="mb-3 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-4">
-          <input placeholder="客先名*" value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-          <input placeholder="屋号(照合キー)" value={nc.yago} onChange={(e) => setNc({ ...nc, yago: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-          <input placeholder="住所" value={nc.address} onChange={(e) => setNc({ ...nc, address: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
+          <input placeholder="客先名*" value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
+          <input placeholder="屋号(照合キー)" value={nc.yago} onChange={(e) => setNc({ ...nc, yago: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
+          <input placeholder="住所" value={nc.address} onChange={(e) => setNc({ ...nc, address: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
           <button
             onClick={() => run(async () => {
               await api("/api/admin/customers", "POST", { name: nc.name, yago: nc.yago || undefined, address: nc.address || undefined });
               setNc({ name: "", yago: "", address: "" });
             })}
-            className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white"
+            className="rounded-xl bg-slate-900 px-4 py-2.5 text-base font-bold text-white"
           >
             追加
           </button>

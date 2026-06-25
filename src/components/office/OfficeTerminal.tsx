@@ -80,12 +80,12 @@ export function OfficeTerminal() {
 
   if (!token) {
     return (
-      <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-4 p-6">
-        <h1 className="text-xl font-bold">据置端末 解錠</h1>
-        <form onSubmit={unlock} className="flex flex-col gap-3">
-          <input type="password" placeholder="端末トークン" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2" />
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <button className="rounded-lg bg-slate-900 px-4 py-2 font-medium text-white">解錠</button>
+      <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-5 p-6">
+        <h1 className="text-center text-2xl font-bold">🔑 据置端末 解錠</h1>
+        <form onSubmit={unlock} className="flex flex-col gap-4">
+          <input type="password" placeholder="端末トークン" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} className="rounded-xl border border-slate-300 px-4 py-4 text-center text-lg" />
+          {error && <p className="text-center text-base text-red-600">{error}</p>}
+          <button className="rounded-xl bg-slate-900 px-4 py-4 text-lg font-bold text-white">解錠する</button>
         </form>
       </main>
     );
@@ -94,41 +94,45 @@ export function OfficeTerminal() {
   return (
     <main className="mx-auto max-w-2xl p-4">
       <header className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold">据置端末 — 出退勤</h1>
-        <button onClick={() => { localStorage.removeItem("office_token"); setToken(null); }} className="text-sm text-slate-400">ロック</button>
+        <h1 className="text-2xl font-bold">据置端末 — 出退勤</h1>
+        <button onClick={() => { localStorage.removeItem("office_token"); setToken(null); }} className="rounded-lg bg-slate-100 px-4 py-2 text-base text-slate-600">🔒 ロック</button>
       </header>
 
-      {toast && <p className="mb-3 rounded bg-green-100 p-3 text-center font-medium text-green-800">{toast}</p>}
-      {error && <p className="mb-3 rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
+      {toast && <p className="mb-4 rounded-xl bg-green-100 p-4 text-center text-lg font-bold text-green-800">✅ {toast}</p>}
+      {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-center text-base text-red-600">{error}</p>}
 
       {drivers === null ? (
-        <p className="text-slate-400">読込中...</p>
+        <p className="text-center text-lg text-slate-400">読込中...</p>
       ) : !selected ? (
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-          {drivers.map((d) => (
-            <button
-              key={d.id}
-              onClick={() => { setSelected(d); setVehicle(d.default_vehicle_no ?? ""); }}
-              className="rounded-xl border border-slate-300 px-3 py-5 text-center active:bg-slate-100"
-            >
-              <div className="text-xs text-slate-400">{d.code}</div>
-              <div className="font-medium">{d.name}</div>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="mx-auto max-w-sm rounded-xl border border-slate-300 p-5">
-          <div className="mb-1 text-sm text-slate-400">{selected.code}</div>
-          <div className="mb-4 text-2xl font-bold">{selected.name}</div>
-          <label className="mb-4 block">
-            <span className="text-sm text-slate-600">車番</span>
-            <input value={vehicle} onChange={(e) => setVehicle(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
-          </label>
-          <div className="flex gap-3">
-            <button onClick={() => punch("departure")} disabled={busy} className="flex-1 rounded-xl bg-slate-900 px-4 py-4 text-lg font-bold text-white disabled:opacity-50">出庫</button>
-            <button onClick={() => punch("clock_out")} disabled={busy} className="flex-1 rounded-xl bg-orange-600 px-4 py-4 text-lg font-bold text-white disabled:opacity-50">退勤</button>
+        <>
+          <p className="mb-3 text-center text-base text-slate-500">ドライバーを選んでください</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {drivers.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => { setSelected(d); setVehicle(d.default_vehicle_no ?? ""); }}
+                className="rounded-2xl border-2 border-slate-200 bg-white px-3 py-6 text-center shadow-sm transition active:scale-95 active:bg-slate-100"
+              >
+                <div className="text-3xl">👤</div>
+                <div className="mt-1 text-lg font-bold">{d.name}</div>
+                <div className="text-xs text-slate-400">No.{d.code}</div>
+              </button>
+            ))}
           </div>
-          <button onClick={() => setSelected(null)} className="mt-4 w-full text-sm text-slate-400">← 戻る</button>
+        </>
+      ) : (
+        <div className="mx-auto max-w-md rounded-2xl border-2 border-slate-200 bg-white p-6 shadow">
+          <div className="mb-1 text-center text-sm text-slate-400">No.{selected.code}</div>
+          <div className="mb-5 text-center text-3xl font-bold">👤 {selected.name}</div>
+          <label className="mb-5 block">
+            <span className="text-base text-slate-600">車番</span>
+            <input value={vehicle} onChange={(e) => setVehicle(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg" />
+          </label>
+          <div className="grid grid-cols-2 gap-4">
+            <button onClick={() => punch("departure")} disabled={busy} className="rounded-2xl bg-sky-600 px-4 py-8 text-2xl font-bold text-white transition active:scale-95 disabled:opacity-50">🚚<br />出庫</button>
+            <button onClick={() => punch("clock_out")} disabled={busy} className="rounded-2xl bg-orange-600 px-4 py-8 text-2xl font-bold text-white transition active:scale-95 disabled:opacity-50">🏁<br />退勤</button>
+          </div>
+          <button onClick={() => setSelected(null)} className="mt-5 w-full rounded-xl bg-slate-100 py-3 text-base text-slate-600">← 戻る</button>
         </div>
       )}
     </main>

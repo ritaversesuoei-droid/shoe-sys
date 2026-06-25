@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { alertLabel } from "@/lib/alert-labels";
 
 interface DetailItem {
   type?: string;
@@ -92,9 +93,9 @@ export function WarningList() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`rounded-full px-4 py-1.5 text-sm ${filter === f ? "bg-slate-900 text-white" : "border border-slate-300"}`}
+            className={`rounded-full px-5 py-2.5 text-base font-bold ${filter === f ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}
           >
-            {f === "open" ? "未対応" : f === "resolved" ? "解消済" : "すべて"}
+            {f === "open" ? "🔴 未対応" : f === "resolved" ? "✅ 解消済" : "すべて"}
           </button>
         ))}
       </div>
@@ -118,10 +119,15 @@ export function WarningList() {
                 </span>
               </div>
 
-              <div className="mt-2 flex flex-wrap gap-1">
-                {w.alert_types.map((t) => (
-                  <span key={t} className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">{t}</span>
-                ))}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {w.alert_types.map((t) => {
+                  const a = alertLabel(t);
+                  return (
+                    <span key={t} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-sm font-bold ${a.cls}`}>
+                      {a.icon} {a.label}
+                    </span>
+                  );
+                })}
               </div>
 
               <div className="mt-2 text-sm text-slate-600">
@@ -151,8 +157,8 @@ export function WarningList() {
                   </div>
                 </div>
               ) : (
-                <button onClick={() => { setEditing(w.id); setReason(""); setNote(""); }} className="mt-3 rounded-lg border border-slate-900 px-4 py-1.5 text-sm font-medium">
-                  是正登録
+                <button onClick={() => { setEditing(w.id); setReason(""); setNote(""); }} className="mt-3 rounded-xl bg-slate-900 px-5 py-2.5 text-base font-bold text-white">
+                  ✍️ 是正を登録
                 </button>
               )}
             </li>

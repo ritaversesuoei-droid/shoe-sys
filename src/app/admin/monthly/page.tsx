@@ -70,33 +70,37 @@ export default async function MonthlyPage({
       ) : (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left">
+            <thead className="bg-slate-100 text-left text-slate-600">
               <tr>
-                <th className="p-2">ドライバー</th>
-                <th className="p-2 text-right">出勤日数</th>
-                <th className="p-2 text-right">拘束</th>
-                <th className="p-2 text-right">労働</th>
-                <th className="p-2 text-right">残業</th>
-                <th className="p-2 text-right">休日労働</th>
-                <th className="p-2 text-right">深夜</th>
-                <th className="p-2 text-right">違反</th>
+                <th className="p-3">ドライバー</th>
+                <th className="p-3 text-right">出勤</th>
+                <th className="p-3 text-right">拘束</th>
+                <th className="p-3 text-right">労働</th>
+                <th className="p-3 text-right">残業</th>
+                <th className="p-3 text-right">休日</th>
+                <th className="p-3 text-right">深夜</th>
+                <th className="p-3 text-center">違反</th>
               </tr>
             </thead>
             <tbody>
               {summary.map((s) => (
-                <tr key={s.driverId} className="border-t">
-                  <td className="p-2">
-                    <span className="font-medium">{s.driverName}</span>
+                <tr key={s.driverId} className={`border-t ${s.violationCount > 0 ? "bg-rose-50" : ""}`}>
+                  <td className="p-3">
+                    <Link href={`/admin/attendance?month=${monthKey}&driver=${s.driverId}`} className="font-bold text-blue-700 hover:underline">
+                      {s.driverName}
+                    </Link>
                     <span className="ml-1 text-xs text-slate-400">{s.driverCode}</span>
                   </td>
-                  <td className="p-2 text-right">{s.workDays}</td>
-                  <td className="p-2 text-right">{hm(s.restraintMin)}</td>
-                  <td className="p-2 text-right">{hm(s.laborMin)}</td>
-                  <td className="p-2 text-right">{hm(s.overtimeMin)}</td>
-                  <td className="p-2 text-right">{hm(s.holidayWorkMin)}</td>
-                  <td className="p-2 text-right">{hm(s.nightMin)}</td>
-                  <td className={`p-2 text-right ${s.violationCount > 0 ? "font-bold text-red-600" : ""}`}>
-                    {s.violationCount}
+                  <td className="p-3 text-right">{s.workDays}日</td>
+                  <td className="p-3 text-right font-mono">{hm(s.restraintMin)}</td>
+                  <td className="p-3 text-right font-mono">{hm(s.laborMin)}</td>
+                  <td className="p-3 text-right font-mono">{hm(s.overtimeMin)}</td>
+                  <td className="p-3 text-right font-mono">{hm(s.holidayWorkMin)}</td>
+                  <td className="p-3 text-right font-mono">{hm(s.nightMin)}</td>
+                  <td className="p-3 text-center">
+                    {s.violationCount > 0
+                      ? <span className="inline-block rounded-full bg-rose-600 px-2.5 py-1 text-sm font-bold text-white">⚠️ {s.violationCount}</span>
+                      : <span className="text-slate-300">—</span>}
                   </td>
                 </tr>
               ))}
