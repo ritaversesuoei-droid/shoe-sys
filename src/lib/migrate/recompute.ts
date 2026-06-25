@@ -13,10 +13,10 @@ function intervalToMin(v: string | null): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** work_date を含む週(月曜)開始日 yyyy-MM-dd */
+/** work_date を含む週(日曜)開始日 yyyy-MM-dd。週起算は現行運用に合わせ日曜。 */
 function weekStart(workDate: string): string {
   const d = new Date(`${workDate}T00:00:00Z`);
-  const off = (d.getUTCDay() + 6) % 7;
+  const off = d.getUTCDay(); // 日曜(0)起算
   d.setUTCDate(d.getUTCDate() - off);
   const p = (v: number) => String(v).padStart(2, "0");
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;

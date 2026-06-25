@@ -690,6 +690,7 @@ export type Database = {
           rest_period_min: number | null
           rest_time: string
           restraint_min: number | null
+          revision_reason: string | null
           revision_status: string
           updated_at: string
           warn_rest: string | null
@@ -714,6 +715,7 @@ export type Database = {
           rest_period_min?: number | null
           rest_time?: string
           restraint_min?: number | null
+          revision_reason?: string | null
           revision_status?: string
           updated_at?: string
           warn_rest?: string | null
@@ -738,6 +740,7 @@ export type Database = {
           rest_period_min?: number | null
           rest_time?: string
           restraint_min?: number | null
+          revision_reason?: string | null
           revision_status?: string
           updated_at?: string
           warn_rest?: string | null

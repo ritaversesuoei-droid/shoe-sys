@@ -67,6 +67,9 @@ export default async function AdminHome() {
           </p>
         </div>
         <div className="flex items-center gap-4">
+          <Link href="/admin/attendance" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium">
+            勤怠修正 →
+          </Link>
           <Link href="/admin/monthly" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium">
             月次集計 →
           </Link>

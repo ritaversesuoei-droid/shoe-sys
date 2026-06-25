@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/types/database";
+import { AppError } from "@/lib/errors";
 import { to_month_key, toWorkDate } from "@/lib/datekey";
 import {
   loadComplianceConfig,
@@ -28,14 +29,14 @@ export function minToInterval(min: number): string {
   return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}:00`;
 }
 
-/** work_date(yyyy-MM-dd) を含む週(月曜〜日曜)の範囲を返す。 */
+/** work_date(yyyy-MM-dd) を含む週(日曜〜土曜)の範囲を返す。週起算は現行運用に合わせ日曜。 */
 function weekRange(workDate: string): { start: string; end: string } {
   const fmt = (d: Date) =>
     `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
   const d = new Date(`${workDate}T00:00:00Z`);
-  const mondayOffset = (d.getUTCDay() + 6) % 7; // 月曜からの経過日数
+  const sundayOffset = d.getUTCDay(); // 日曜(0)からの経過日数
   const start = new Date(d);
-  start.setUTCDate(d.getUTCDate() - mondayOffset);
+  start.setUTCDate(d.getUTCDate() - sundayOffset);
   const end = new Date(start);
   end.setUTCDate(start.getUTCDate() + 6);
   return { start: fmt(start), end: fmt(end) };
@@ -201,4 +202,68 @@ export async function recomputeShift(sb: SB, shiftId: string): Promise<CloseResu
   if (error) throw error;
   if (!shift || !shift.clock_out_at) return null;
   return persistShiftMetrics(sb, shift, shift.clock_out_at, intervalToMin(shift.rest_time));
+}
+
+function addDaysStr(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+}
+function hhmmOf(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const m = /^(\d{1,2}):(\d{2})/.exec(s.trim());
+  if (!m) return null;
+  return `${m[1]!.padStart(2, "0")}:${m[2]!}`;
+}
+
+export interface ShiftEditInput {
+  editedIn?: string | null;
+  editedOut?: string | null;
+  inAdjDays?: number;
+  outAdjDays?: number;
+  restMin?: number;
+  reason?: string | null;
+}
+
+/**
+ * 勤怠修正（修正入力 / F-19）。修正出退勤(HH:MM)＋補正(日数)＋休憩(分)＋理由を反映し、
+ * 確定出退勤(clock_in/out)を再構成 → 拘束/労働/深夜/休息を再計算 → 違反再判定。
+ * 無指定の項目は既存値→実績で補完。出勤時刻が無い場合は AppError(422)。
+ */
+export async function applyShiftEdit(
+  sb: SB,
+  shiftId: string,
+  edit: ShiftEditInput,
+): Promise<CloseResult | null> {
+  const { data: shift, error } = await sb.from("shifts").select("*").eq("id", shiftId).maybeSingle();
+  if (error) throw error;
+  if (!shift) throw new AppError("勤務が見つかりません", 404);
+
+  const inTime = hhmmOf(edit.editedIn ?? shift.edited_in ?? shift.actual_in);
+  const outTime = hhmmOf(edit.editedOut ?? shift.edited_out ?? shift.actual_out);
+  const inAdj = edit.inAdjDays ?? shift.edited_in_adj_days;
+  const outAdj = edit.outAdjDays ?? shift.edited_out_adj_days;
+  if (!inTime) throw new AppError("出勤時刻が必要です", 422);
+
+  const clockIn = `${addDaysStr(shift.work_date, inAdj)}T${inTime}:00+09:00`;
+  const clockOut = outTime ? `${addDaysStr(shift.work_date, outAdj)}T${outTime}:00+09:00` : null;
+
+  const { error: e1 } = await sb
+    .from("shifts")
+    .update({
+      clock_in_at: clockIn,
+      clock_out_at: clockOut,
+      edited_in: `${inTime}:00`,
+      edited_out: outTime ? `${outTime}:00` : null,
+      edited_in_adj_days: inAdj,
+      edited_out_adj_days: outAdj,
+      rest_time: edit.restMin != null ? minToInterval(edit.restMin) : shift.rest_time,
+      revision_status: "edited",
+      revision_reason: edit.reason ?? shift.revision_reason,
+    })
+    .eq("id", shiftId);
+  if (e1) throw e1;
+
+  return recomputeShift(sb, shiftId);
 }

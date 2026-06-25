@@ -28,7 +28,7 @@
     "test:weekly": "node --env-file=.env.local --import tsx scripts/test-weekly.mts",
     "test:photo": "node --env-file=.env.local --import tsx scripts/test-photo.mts",
     "smoke": "node --import tsx scripts/smoke.mts",
-    "test:all": "npm run test:punch && npm run test:daily && npm run test:pdf && npm run test:line && npm run test:board && npm run test:monthly && npm run test:customer && npm run test:migrate && npm run test:warning && npm run test:weekly && npm run test:photo && npm run test:masters && npm run test:settings && npm run test:migrate-files && npm run test:holiday && npm run test:webhook",
+    "test:all": "npm run test:punch && npm run test:daily && npm run test:pdf && npm run test:line && npm run test:board && npm run test:monthly && npm run test:customer && npm run test:migrate && npm run test:warning && npm run test:weekly && npm run test:photo && npm run test:masters && npm run test:settings && npm run test:migrate-files && npm run test:holiday && npm run test:webhook && npm run test:attendance",
     "test:masters": "node --env-file=.env.local --import tsx scripts/test-masters.mts",
     "test:settings": "node --env-file=.env.local --import tsx scripts/test-settings.mts",
     "migrate:shifts": "node --env-file=.env.local --import tsx scripts/migrate/import-shifts.mts",
@@ -39,7 +39,8 @@
     "migrate:editinput": "node --env-file=.env.local --import tsx scripts/migrate/import-editinput.mts",
     "test:holiday": "node --env-file=.env.local --import tsx scripts/test-holiday.mts",
     "test:webhook": "node --conditions=react-server --env-file=.env.local --import tsx scripts/test-line-webhook.mts",
-    "docs:pdf": "node --import tsx scripts/make-doc-pdf.mts"
+    "docs:pdf": "node --import tsx scripts/make-doc-pdf.mts",
+    "test:attendance": "node --conditions=react-server --env-file=.env.local --import tsx scripts/test-attendance.mts"
   },
   "dependencies": {
     "@line/bot-sdk": "^9.5.0",
