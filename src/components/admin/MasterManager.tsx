@@ -17,6 +17,13 @@ interface Vehicle {
   kind: string | null;
   is_active: boolean;
 }
+interface Customer {
+  id: string;
+  name: string;
+  yago: string | null;
+  postal_code: string | null;
+  address: string | null;
+}
 
 async function api(path: string, method: string, body?: unknown) {
   const res = await fetch(path, {
@@ -32,16 +39,23 @@ async function api(path: string, method: string, body?: unknown) {
 export function MasterManager() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [nd, setNd] = useState({ code: "", name: "", default_vehicle_no: "", affiliation: "" });
   const [nv, setNv] = useState({ vehicle_no: "", name: "", kind: "" });
+  const [nc, setNc] = useState({ name: "", yago: "", address: "" });
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [d, v] = await Promise.all([api("/api/admin/drivers", "GET"), api("/api/admin/vehicles", "GET")]);
+      const [d, v, c] = await Promise.all([
+        api("/api/admin/drivers", "GET"),
+        api("/api/admin/vehicles", "GET"),
+        api("/api/admin/customers", "GET"),
+      ]);
       setDrivers(d.drivers);
       setVehicles(v.vehicles);
+      setCustomers(c.customers);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -140,6 +154,43 @@ export function MasterManager() {
                       className={`rounded-full px-2 py-0.5 text-xs ${v.is_active ? "bg-green-100 text-green-700" : "bg-slate-200 text-slate-600"}`}>
                       {v.is_active ? "稼働" : "停止"}
                     </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* 客先（荷主） */}
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">客先マスタ（{customers.length}）</h2>
+        <div className="mb-3 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-4">
+          <input placeholder="客先名*" value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
+          <input placeholder="屋号(照合キー)" value={nc.yago} onChange={(e) => setNc({ ...nc, yago: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
+          <input placeholder="住所" value={nc.address} onChange={(e) => setNc({ ...nc, address: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
+          <button
+            onClick={() => run(async () => {
+              await api("/api/admin/customers", "POST", { name: nc.name, yago: nc.yago || undefined, address: nc.address || undefined });
+              setNc({ name: "", yago: "", address: "" });
+            })}
+            className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white"
+          >
+            追加
+          </button>
+        </div>
+        <div className="max-h-96 overflow-auto rounded-lg border">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-slate-50 text-left"><tr><th className="p-2">客先名</th><th className="p-2">屋号</th><th className="p-2">住所</th><th className="p-2"></th></tr></thead>
+            <tbody>
+              {customers.map((c) => (
+                <tr key={c.id} className="border-t">
+                  <td className="p-2">{c.name}</td>
+                  <td className="p-2 text-slate-500">{c.yago ?? "-"}</td>
+                  <td className="p-2 text-slate-500">{c.address ?? "-"}</td>
+                  <td className="p-2">
+                    <button onClick={() => { if (confirm(`「${c.name}」を削除しますか？`)) void run(() => api(`/api/admin/customers/${c.id}`, "DELETE")); }}
+                      className="rounded px-2 py-0.5 text-xs text-red-600 hover:bg-red-50">削除</button>
                   </td>
                 </tr>
               ))}
