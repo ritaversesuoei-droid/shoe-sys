@@ -40,12 +40,16 @@ export default async function AttendancePage({
   let q = supabase
     .from("shifts")
     .select(
-      "id, work_date, actual_in, actual_out, edited_in, edited_out, edited_in_adj_days, edited_out_adj_days, rest_time, restraint_min, labor_min, night_min, warn_restraint, warn_rest, revision_status, revision_reason, clock_out_at, drivers(code, name)",
+      "id, work_date, actual_in, actual_out, edited_in, edited_out, edited_in_adj_days, edited_out_adj_days, rest_time, restraint_min, labor_min, night_min, warn_restraint, warn_rest, revision_status, revision_reason, clock_in_at, clock_out_at, drivers(code, name)",
     )
     .eq("month_key", monthKey)
     .order("work_date", { ascending: true });
   if (driver) q = q.eq("driver_id", driver);
   const { data: shifts } = await q;
+
+  // 確定時刻(timestamptz)から JST の HH:MM:SS を得る（打刻由来で actual_in/out が無い勤務の既定値補完用）
+  const jstTime = (iso: string | null): string | null =>
+    iso ? new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : null;
 
   const rows: AttendanceRow[] = (shifts ?? []).map((s) => {
     const d = s.drivers as { code: string; name: string } | null;
@@ -54,8 +58,8 @@ export default async function AttendancePage({
       workDate: s.work_date,
       driverName: d?.name ?? "(不明)",
       driverCode: d?.code ?? null,
-      actualIn: s.actual_in,
-      actualOut: s.actual_out,
+      actualIn: s.actual_in ?? jstTime(s.clock_in_at),
+      actualOut: s.actual_out ?? jstTime(s.clock_out_at),
       editedIn: s.edited_in,
       editedOut: s.edited_out,
       inAdj: s.edited_in_adj_days,

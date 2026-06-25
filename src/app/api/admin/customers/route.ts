@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { ok, handle } from "@/lib/api/response";
+import { ok, fail, handle } from "@/lib/api/response";
 import { z } from "zod";
 
 /** GET /api/admin/customers  客先マスタ一覧（F-22 / 客先マスタ） */
@@ -30,6 +30,11 @@ export async function POST(request: Request) {
     await requireAdmin();
     const body = createSchema.parse(await request.json());
     const supabase = await createClient();
+
+    // 同名重複の防止（マスタの一意性）
+    const { data: dup } = await supabase.from("customers").select("id").eq("name", body.name).limit(1).maybeSingle();
+    if (dup) return fail("同名の客先が既に登録されています", 409);
+
     const { data, error } = await supabase
       .from("customers")
       .insert({
