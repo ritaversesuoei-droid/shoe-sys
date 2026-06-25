@@ -66,31 +66,11 @@ export default async function AdminHome() {
             {today}（{ctx.displayName ?? "管理者"}）
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <Link href="/admin/dispatch" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium">
-            配車表 →
-          </Link>
-          <Link href="/admin/attendance" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium">
-            勤怠修正 →
-          </Link>
-          <Link href="/admin/reports" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium">
-            日報 →
-          </Link>
-          <Link href="/admin/monthly" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium">
-            月次集計 →
-          </Link>
-          <Link href="/admin/masters" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium">
-            マスタ管理 →
-          </Link>
-          <Link href="/admin/settings" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium">
-            設定 →
-          </Link>
-          <div className="text-right text-sm">
-            <div className="text-slate-500">LINE通知 当月</div>
-            <div className="font-bold">
-              {sent}
-              {limit != null ? ` / ${limit}` : ""} 件
-            </div>
+        <div className="text-right text-sm">
+          <div className="text-slate-500">LINE通知 当月</div>
+          <div className="font-bold">
+            {sent}
+            {limit != null ? ` / ${limit}` : ""} 件
           </div>
         </div>
       </header>

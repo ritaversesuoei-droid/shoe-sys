@@ -49,6 +49,12 @@ export default async function DispatchPage({
   const own = rows.filter((r) => !r.is_subcontract).length;
   const sub = rows.length - own;
 
+  const shift = (n: number): string => {
+    const d = new Date(`${day}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+
   return (
     <main className="mx-auto max-w-7xl p-6">
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -56,10 +62,14 @@ export default async function DispatchPage({
           <h1 className="text-2xl font-bold">配車表（流れ表）</h1>
           <Link href="/admin" className="text-sm text-blue-600">← ダッシュボード</Link>
         </div>
-        <form method="GET" className="flex items-center gap-2">
-          <input type="date" name="date" defaultValue={day} min={earliest?.plan_date ?? undefined} max={latest?.plan_date ?? undefined} className="rounded-lg border border-slate-300 px-3 py-2" />
-          <button type="submit" className="rounded-lg bg-slate-900 px-4 py-2 text-white">表示</button>
-        </form>
+        <div className="flex items-center gap-2">
+          <Link href={`/admin/dispatch?date=${shift(-1)}`} className="rounded-xl bg-slate-200 px-4 py-3 text-base font-bold text-slate-700 hover:bg-slate-300">◀ 前日</Link>
+          <form method="GET" className="flex items-center gap-2">
+            <input type="date" name="date" defaultValue={day} min={earliest?.plan_date ?? undefined} max={latest?.plan_date ?? undefined} className="rounded-lg border border-slate-300 px-3 py-3 text-base" />
+            <button type="submit" className="rounded-xl bg-slate-900 px-4 py-3 text-base font-bold text-white">表示</button>
+          </form>
+          <Link href={`/admin/dispatch?date=${shift(1)}`} className="rounded-xl bg-slate-200 px-4 py-3 text-base font-bold text-slate-700 hover:bg-slate-300">翌日 ▶</Link>
+        </div>
       </header>
 
       <p className="mb-3 text-sm text-slate-500">
@@ -90,17 +100,17 @@ export default async function DispatchPage({
                 const d = r.drivers as { name: string } | null;
                 return (
                   <tr key={r.id} className="border-t align-top">
-                    <td className="p-2 whitespace-nowrap">
-                      <span className={`rounded px-1.5 py-0.5 text-xs ${r.is_subcontract ? "bg-orange-50 text-orange-700" : "bg-sky-50 text-sky-700"}`}>
-                        {r.is_subcontract ? "子車" : "自社"}
+                    <td className="p-3 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-bold ${r.is_subcontract ? "bg-orange-100 text-orange-700" : "bg-sky-100 text-sky-700"}`}>
+                        {r.is_subcontract ? "🚚 子車" : "🏢 自社"}
                       </span>
                     </td>
-                    <td className="p-2 whitespace-nowrap font-medium">{d?.name ?? r.driver_name_raw ?? "—"}</td>
-                    <td className="p-2 whitespace-nowrap">{r.vehicle_no ?? "—"}</td>
-                    <td className="p-2 whitespace-nowrap">{r.shipper ?? "—"}</td>
-                    <td className="p-2">{r.delivery_spot ?? "—"}</td>
-                    <td className="p-2 whitespace-nowrap">{r.highway_instruction ?? ""}</td>
-                    <td className="p-2 text-xs text-slate-500 max-w-[20rem]">{r.note ?? ""}</td>
+                    <td className="p-3 whitespace-nowrap font-bold">{d?.name ?? r.driver_name_raw ?? "—"}</td>
+                    <td className="p-3 whitespace-nowrap">{r.vehicle_no ?? "—"}</td>
+                    <td className="p-3 whitespace-nowrap">{r.shipper ?? "—"}</td>
+                    <td className="p-3">{r.delivery_spot ?? "—"}</td>
+                    <td className="p-3 whitespace-nowrap">{r.highway_instruction ? `🛣️ ${r.highway_instruction}` : ""}</td>
+                    <td className="p-3 text-xs text-slate-500 max-w-[20rem]">{r.note ?? ""}</td>
                   </tr>
                 );
               })}
