@@ -23,6 +23,12 @@ export const DEFAULT_COMPLIANCE_CONFIG: ComplianceConfig = {
     two_week_avg_weekly_max_min: 2640,
   },
   continuous_driving: { max_min: 240, break_unit_min: 10, break_total_min: 30 },
+  // 公知の2024年告示値（要社労士確認）。該当勤務のみ適用。
+  special_cases: {
+    two_person: { max_restraint_min: 1200, min_rest_period_min: 240 }, // 拘束20h / 休息4h
+    split_rest: { min_segment_min: 180, min_total_min: 600, max_splits: 3 }, // 1回3h以上 / 合計10h以上
+    ferry: { credit_cap_min: 0 }, // 0=控除上限なし
+  },
 };
 
 /** 任意の JSON 値を ComplianceConfig へマージ（欠損キーは既定値で補完）。 */
@@ -39,5 +45,10 @@ export function mergeComplianceConfig(value: unknown): ComplianceConfig {
     rest_period: { ...d.rest_period, ...v.rest_period },
     driving_time: { ...d.driving_time, ...v.driving_time },
     continuous_driving: { ...d.continuous_driving, ...v.continuous_driving },
+    special_cases: {
+      two_person: { ...d.special_cases.two_person, ...v.special_cases?.two_person },
+      split_rest: { ...d.special_cases.split_rest, ...v.special_cases?.split_rest },
+      ferry: { ...d.special_cases.ferry, ...v.special_cases?.ferry },
+    },
   };
 }

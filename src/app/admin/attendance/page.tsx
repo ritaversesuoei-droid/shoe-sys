@@ -40,7 +40,7 @@ export default async function AttendancePage({
   let q = supabase
     .from("shifts")
     .select(
-      "id, work_date, actual_in, actual_out, edited_in, edited_out, edited_in_adj_days, edited_out_adj_days, rest_time, restraint_min, labor_min, night_min, warn_restraint, warn_rest, revision_status, revision_reason, clock_in_at, clock_out_at, drivers(code, name)",
+      "id, work_date, actual_in, actual_out, edited_in, edited_out, edited_in_adj_days, edited_out_adj_days, rest_time, restraint_min, labor_min, night_min, warn_restraint, warn_rest, revision_status, revision_reason, crew_type, ferry_min, split_rest, clock_in_at, clock_out_at, drivers(code, name)",
     )
     .eq("month_key", monthKey)
     .order("work_date", { ascending: true });
@@ -72,6 +72,9 @@ export default async function AttendancePage({
       revisionStatus: s.revision_status,
       revisionReason: s.revision_reason,
       closed: s.clock_out_at != null,
+      crewType: s.crew_type ?? "single",
+      ferryMin: s.ferry_min ?? 0,
+      splitRest: s.split_rest ?? false,
     };
   });
 
@@ -101,7 +104,8 @@ export default async function AttendancePage({
         <AttendanceTable rows={rows} />
       )}
       <p className="mt-3 text-xs text-slate-400">
-        修正出勤/退勤(HH:MM)・補正(翌日=1)・休憩(分)・理由を編集し「保存」。拘束/労働/深夜・違反が再計算されます（週起算=日曜）。
+        修正出勤/退勤(HH:MM)・補正(翌日=1)・休憩(分)・理由を編集し「保存」。拘束/労働/深夜・違反が再計算されます（週起算=日曜）。<br />
+        <span className="text-amber-600">特例（2人乗務／フェリー乗船分／分割休息）は該当勤務のみ適用。改善基準告示の判定に反映されます（値は要社労士確認）。</span>
       </p>
     </main>
   );
