@@ -49,3 +49,5 @@ docs/*.pdf
 
 # テスト依頼資料（認証情報を含むため非コミット）
 docs/test-guide.md
+.vercel
+.env*

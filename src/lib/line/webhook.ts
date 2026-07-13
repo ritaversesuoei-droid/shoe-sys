@@ -2,14 +2,23 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { replyMessage } from "./client";
-import { isLineConfigured } from "./notify";
+import { isReplyConfigured } from "./notify";
 
 /** LINE Webhook イベント（必要フィールドのみ）。 */
 export interface LineWebhookEvent {
   type: string;
   replyToken?: string;
-  source?: { type?: string; userId?: string };
+  source?: { type?: string; userId?: string; groupId?: string; roomId?: string };
   message?: { type?: string; text?: string };
+}
+
+/** イベント発生元のID（グループ/ルーム優先、無ければ個人）。管理者通知の宛先に使える。 */
+function sourceId(ev: LineWebhookEvent): string | null {
+  return ev.source?.groupId ?? ev.source?.roomId ?? ev.source?.userId ?? null;
+}
+/** グループ/ルームからのイベントか。 */
+function isGroupSource(ev: LineWebhookEvent): boolean {
+  return ev.source?.type === "group" || ev.source?.type === "room";
 }
 
 const FOLLOW_GUIDE =
@@ -19,7 +28,7 @@ const FOLLOW_GUIDE =
 
 /** 返信（best-effort。LINE未設定/トークン無しなら何もしない）。 */
 async function reply(ev: LineWebhookEvent, text: string): Promise<void> {
-  if (!ev.replyToken || !isLineConfigured()) return;
+  if (!ev.replyToken || !isReplyConfigured()) return;
   try {
     await replyMessage(ev.replyToken, [{ type: "text", text }]);
   } catch (e) {
@@ -32,9 +41,33 @@ async function onFollow(ev: LineWebhookEvent): Promise<void> {
   await reply(ev, FOLLOW_GUIDE);
 }
 
-/** テキスト受信 → ドライバー番号なら連携、それ以外は案内。 */
+/** グループ/ルームに追加された → 管理者通知の宛先に使えるIDを案内（LINE_ADMIN_TARGET_ID 設定用）。 */
+async function onJoin(ev: LineWebhookEvent): Promise<void> {
+  const id = ev.source?.groupId ?? ev.source?.roomId;
+  if (!id) return;
+  await reply(
+    ev,
+    "昭栄運輸 勤怠システムです。\n" +
+      "このトークを管理者通知の宛先にできます。\n" +
+      `宛先ID: ${id}\n` +
+      "（この宛先IDを設定に登録すると、以後ここへ違反警告・業務報告を通知します）",
+  );
+}
+
+/** テキスト受信 → 「ID」なら発生元ID返信 / 1:1でドライバー番号なら連携 / それ以外は案内。 */
 async function onTextMessage(ev: LineWebhookEvent): Promise<void> {
   const text = (ev.message?.text ?? "").trim();
+
+  // 設定支援: 「ID」「宛先」等で発生元IDを返す（管理者通知の宛先取得に使う）。
+  if (/^(id|グループid|宛先id|宛先)$/i.test(text)) {
+    const id = sourceId(ev);
+    await reply(ev, id ? `宛先ID: ${id}` : "IDを取得できませんでした。");
+    return;
+  }
+
+  // ドライバー番号連携は 1:1 トークのみ（グループでは番号連携も定型案内もしない）。
+  if (isGroupSource(ev)) return;
+
   const userId = ev.source?.userId;
   const m = /^0*(\d{1,3})$/.exec(text);
   if (!m || !userId) {
@@ -78,6 +111,7 @@ export async function handleWebhookEvents(events: LineWebhookEvent[]): Promise<v
   for (const ev of events) {
     try {
       if (ev.type === "follow") await onFollow(ev);
+      else if (ev.type === "join") await onJoin(ev);
       else if (ev.type === "message" && ev.message?.type === "text") await onTextMessage(ev);
       else if (ev.type === "unfollow") await onUnfollow(ev);
     } catch (e) {
