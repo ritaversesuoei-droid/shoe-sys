@@ -26,11 +26,13 @@ export const EVENT_LABEL: Record<string, string> = {
   unloading: "荷卸",
   long_rest: "長距離休憩",
   clock_out: "退勤",
+  rest_start: "休憩開始",
+  rest_end: "休憩終了",
 };
 
 function statusOf(eventType: string | null): BoardStatus {
   if (eventType === "clock_out") return "done";
-  if (eventType === "long_rest") return "rest";
+  if (eventType === "long_rest" || eventType === "rest_start") return "rest";
   if (eventType) return "active";
   return "idle";
 }

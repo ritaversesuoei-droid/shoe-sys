@@ -12,6 +12,8 @@ export const eventTypeSchema = z.enum([
   "unloading",
   "long_rest",
   "clock_out",
+  "rest_start",
+  "rest_end",
 ]);
 
 export const eventItemSchema = z.object({

@@ -16,6 +16,15 @@ export function isLineConfigured(): boolean {
   return !isPlaceholder(e.LINE_CHANNEL_ACCESS_TOKEN) && !isPlaceholder(e.LINE_ADMIN_TARGET_ID);
 }
 
+/**
+ * Webhook 返信（reply）はアクセストークンだけで可能（宛先ID不要）。
+ * 宛先ID(LINE_ADMIN_TARGET_ID)が未設定の「設定作業中」でも、グループID案内などを返せるようにする。
+ */
+export function isReplyConfigured(): boolean {
+  const e = getServerEnv();
+  return !isPlaceholder(e.LINE_CHANNEL_ACCESS_TOKEN);
+}
+
 const TITLE: Record<string, string> = {
   loading: "積込完了",
   unloading: "荷卸完了",

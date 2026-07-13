@@ -944,6 +944,8 @@ export type EventType =
   | "loading"
   | "unloading"
   | "long_rest"
-  | "clock_out";
+  | "clock_out"
+  | "rest_start"
+  | "rest_end";
 export type AlertStatus = "open" | "resolved";
 export type ReportStatus = "draft" | "confirmed";
