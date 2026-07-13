@@ -22,6 +22,10 @@ export interface AttendanceRow {
   revisionStatus: string;
   revisionReason: string | null;
   closed: boolean;
+  // 改善基準告示の特例（要社労士確認）
+  crewType: string; // 'single' | 'double'
+  ferryMin: number;
+  splitRest: boolean;
 }
 
 const hm = (t: string | null): string => (t ? t.slice(0, 5) : "");
@@ -51,6 +55,7 @@ export default function AttendanceTable({ rows }: { rows: AttendanceRow[] }) {
             <th className="p-3 whitespace-nowrap">修正 退勤</th>
             <th className="p-3 whitespace-nowrap">休憩(分)</th>
             <th className="p-3 text-right whitespace-nowrap">拘束 / 労働 / 深夜</th>
+            <th className="p-3 whitespace-nowrap">特例<br /><span className="text-xs font-normal text-slate-400">要社労士</span></th>
             <th className="p-3 whitespace-nowrap">理由</th>
             <th className="p-3"></th>
           </tr>
@@ -73,6 +78,9 @@ function EditableRow({ row }: { row: AttendanceRow }) {
   const [outAdj, setOutAdj] = useState(row.outAdj);
   const [restMin, setRestMin] = useState(intervalToMin(row.restTime));
   const [reason, setReason] = useState(row.revisionReason ?? "");
+  const [crewType, setCrewType] = useState<"single" | "double">(row.crewType === "double" ? "double" : "single");
+  const [ferryMin, setFerryMin] = useState(row.ferryMin ?? 0);
+  const [splitRest, setSplitRest] = useState(row.splitRest);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -92,6 +100,9 @@ function EditableRow({ row }: { row: AttendanceRow }) {
           edited_out_adj_days: outAdj,
           rest_min: restMin,
           revision_reason: reason || null,
+          crew_type: crewType,
+          ferry_min: ferryMin,
+          split_rest: splitRest,
         }),
       });
       const json = await res.json();
@@ -140,6 +151,18 @@ function EditableRow({ row }: { row: AttendanceRow }) {
       <td className="p-3 text-right whitespace-nowrap font-mono">
         <span className={row.warn ? "font-bold text-rose-600" : ""}>{hhmm(row.restraintMin)}</span> / {hhmm(row.laborMin)} / {row.nightMin ?? "—"}
         {row.warn && <div className="mt-1 max-w-[14rem] text-right text-xs font-normal text-rose-600">{row.warn}</div>}
+      </td>
+      <td className="p-3 whitespace-nowrap">
+        <select value={crewType} onChange={(e) => setCrewType(e.target.value as "single" | "double")} className="rounded-lg border border-slate-300 px-1 py-1.5 text-sm">
+          <option value="single">通常</option>
+          <option value="double">2人乗務</option>
+        </select>
+        <label className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+          ﾌｪﾘｰ<input type="number" min={0} step={30} value={ferryMin} onChange={(e) => setFerryMin(Number(e.target.value))} className="w-16 rounded border border-slate-300 px-1 py-1 text-sm" />分
+        </label>
+        <label className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+          <input type="checkbox" checked={splitRest} onChange={(e) => setSplitRest(e.target.checked)} className="h-4 w-4" />分割休息
+        </label>
       </td>
       <td className="p-3"><input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="修正理由" className={`${inputCls} w-32`} /></td>
       <td className="p-3 whitespace-nowrap">

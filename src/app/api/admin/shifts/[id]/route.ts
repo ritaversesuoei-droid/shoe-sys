@@ -16,6 +16,10 @@ const schema = z.object({
   edited_out_adj_days: z.number().int().min(0).max(3).optional(),
   rest_min: z.number().int().min(0).max(1440).optional(),
   revision_reason: z.string().max(500).nullable().optional(),
+  // 改善基準告示の特例（該当勤務のみ・要社労士確認）
+  crew_type: z.enum(["single", "double"]).optional(),
+  ferry_min: z.number().int().min(0).max(1440).optional(),
+  split_rest: z.boolean().optional(),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -32,6 +36,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       outAdjDays: body.edited_out_adj_days,
       restMin: body.rest_min,
       reason: body.revision_reason,
+      crewType: body.crew_type,
+      ferryMin: body.ferry_min,
+      splitRest: body.split_rest,
     });
 
     return ok({ id, metrics: result?.metrics ?? null, judgement: result?.judgement ?? null });
