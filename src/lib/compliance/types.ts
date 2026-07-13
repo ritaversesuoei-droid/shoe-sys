@@ -25,6 +25,28 @@ export interface ComplianceConfig {
     break_unit_min: number;
     break_total_min: number;
   };
+  /**
+   * 改善基準告示の特例（該当する働き方の勤務にのみ適用 / 要社労士確認）。
+   *  - two_person: 2人乗務。拘束を延長・休息を短縮できる。
+   *  - split_rest: 分割休息。休息期間を分割する場合の下限（合計/1回）。
+   *  - ferry    : フェリー乗船時間を休息期間として扱う（拘束から控除）。
+   * 既定は公知の2024年告示値。実際の判定反映前に社労士確認のこと。
+   */
+  special_cases: {
+    two_person: { max_restraint_min: number; min_rest_period_min: number };
+    split_rest: { min_segment_min: number; min_total_min: number; max_splits: number };
+    ferry: { credit_cap_min: number }; // 休息として控除できる上限（0=上限なし）
+  };
+}
+
+/**
+ * 勤務単位の作業区分（特例の適用フラグ）。無指定＝通常勤務（標準ルール）。
+ * shifts.crew_type / ferry_min / split_rest から構成し judgeShift へ渡す。
+ */
+export interface ShiftWorkMode {
+  crewType?: "single" | "double"; // 2人乗務
+  ferryMin?: number; // フェリー乗船分（休息として拘束から控除）
+  splitRest?: boolean; // 分割休息を適用
 }
 
 /** 1勤務分の基礎指標（仕様書 6.1） */

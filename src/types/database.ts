@@ -692,6 +692,9 @@ export type Database = {
           restraint_min: number | null
           revision_reason: string | null
           revision_status: string
+          crew_type: string
+          ferry_min: number
+          split_rest: boolean
           updated_at: string
           warn_rest: string | null
           warn_restraint: string | null
@@ -717,6 +720,9 @@ export type Database = {
           restraint_min?: number | null
           revision_reason?: string | null
           revision_status?: string
+          crew_type?: string
+          ferry_min?: number
+          split_rest?: boolean
           updated_at?: string
           warn_rest?: string | null
           warn_restraint?: string | null
@@ -742,6 +748,9 @@ export type Database = {
           restraint_min?: number | null
           revision_reason?: string | null
           revision_status?: string
+          crew_type?: string
+          ferry_min?: number
+          split_rest?: boolean
           updated_at?: string
           warn_rest?: string | null
           warn_restraint?: string | null

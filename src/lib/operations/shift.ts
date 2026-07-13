@@ -8,6 +8,7 @@ import {
   judgeShift,
   type ShiftMetrics,
   type ShiftJudgement,
+  type ShiftWorkMode,
 } from "@/lib/compliance";
 
 type SB = SupabaseClient<Database>;
@@ -135,7 +136,13 @@ async function persistShiftMetrics(
     .not("clock_out_at", "is", null)
     .gt("restraint_min", config.daily_restraint.extended_threshold_min);
 
-  const judgement = judgeShift(metrics, config, { extendedCountThisWeek: count ?? 0 });
+  // 改善基準告示の特例（該当勤務のみ・要社労士確認）を作業区分から適用
+  const workMode: ShiftWorkMode = {
+    crewType: shift.crew_type === "double" ? "double" : "single",
+    ferryMin: shift.ferry_min ?? 0,
+    splitRest: shift.split_rest === true,
+  };
+  const judgement = judgeShift(metrics, config, { extendedCountThisWeek: count ?? 0 }, workMode);
 
   const warnRestraint =
     judgement.items.find((i) => i.type === "restraint" && i.severity !== "info")?.message ?? null;
@@ -224,6 +231,10 @@ export interface ShiftEditInput {
   outAdjDays?: number;
   restMin?: number;
   reason?: string | null;
+  // 改善基準告示の特例（該当勤務のみ・要社労士確認）
+  crewType?: "single" | "double";
+  ferryMin?: number;
+  splitRest?: boolean;
 }
 
 /**
@@ -261,6 +272,9 @@ export async function applyShiftEdit(
       rest_time: edit.restMin != null ? minToInterval(edit.restMin) : shift.rest_time,
       revision_status: "edited",
       revision_reason: edit.reason ?? shift.revision_reason,
+      crew_type: edit.crewType ?? shift.crew_type,
+      ferry_min: edit.ferryMin ?? shift.ferry_min,
+      split_rest: edit.splitRest ?? shift.split_rest,
     })
     .eq("id", shiftId);
   if (e1) throw e1;
