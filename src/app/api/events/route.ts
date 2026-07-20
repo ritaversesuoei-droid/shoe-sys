@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireDriver } from "@/lib/auth";
 import { ok, handle } from "@/lib/api/response";
 import { createEventSchema } from "@/lib/validation";
@@ -23,7 +23,9 @@ export async function POST(request: Request) {
   return handle(async () => {
     const ctx = await requireDriver();
     const body = createEventSchema.parse(await request.json());
-    const supabase = await createClient();
+    // 打刻は勤務クローズ時に compliance_alerts（管理者のみ書込可）へ書くサーバー内部処理。
+    // 認証済みセッションの ctx.driverId に限定して service_role で実行（据置端末と同方式）。
+    const supabase = createAdminClient();
 
     const result = await processPunch(supabase, ctx.driverId, body);
 
