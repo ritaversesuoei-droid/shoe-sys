@@ -9,6 +9,7 @@ interface Driver {
   default_vehicle_no: string | null;
   affiliation: string | null;
   is_active: boolean;
+  manage_attendance: boolean;
 }
 interface Vehicle {
   id: string;
@@ -102,7 +103,7 @@ export function MasterManager() {
         </div>
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left"><tr><th className="p-2">ID</th><th className="p-2">氏名</th><th className="p-2">既定車番</th><th className="p-2">所属</th><th className="p-2">在籍</th></tr></thead>
+            <thead className="bg-slate-50 text-left"><tr><th className="p-2">ID</th><th className="p-2">氏名</th><th className="p-2">既定車番</th><th className="p-2">所属</th><th className="p-2">勤怠管理</th><th className="p-2">在籍</th></tr></thead>
             <tbody>
               {drivers.map((d) => (
                 <tr key={d.id} className={`border-t ${d.is_active ? "" : "opacity-50"}`}>
@@ -110,6 +111,13 @@ export function MasterManager() {
                   <td className="p-2">{d.name}</td>
                   <td className="p-2">{d.default_vehicle_no ?? "-"}</td>
                   <td className="p-2">{d.affiliation ?? "-"}</td>
+                  <td className="p-2">
+                    <button onClick={() => run(() => api(`/api/admin/drivers/${d.id}`, "PATCH", { manage_attendance: !d.manage_attendance }))}
+                      title="自社=勤怠管理あり / 協力店社=打刻履歴のみ・違反判定なし"
+                      className={`rounded-full px-2 py-0.5 text-xs ${d.manage_attendance ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
+                      {d.manage_attendance ? "自社" : "協力"}
+                    </button>
+                  </td>
                   <td className="p-2">
                     <button onClick={() => run(() => api(`/api/admin/drivers/${d.id}`, "PATCH", { is_active: !d.is_active }))}
                       className={`rounded-full px-2 py-0.5 text-xs ${d.is_active ? "bg-green-100 text-green-700" : "bg-slate-200 text-slate-600"}`}>

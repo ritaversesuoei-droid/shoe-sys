@@ -112,6 +112,7 @@ export const driverCreateSchema = z.object({
   default_vehicle_no: z.string().optional(),
   affiliation: z.string().optional(),
   line_user_id: z.string().optional(),
+  manage_attendance: z.boolean().optional(),
 });
 export const driverUpdateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -119,6 +120,7 @@ export const driverUpdateSchema = z.object({
   affiliation: z.string().nullable().optional(),
   line_user_id: z.string().nullable().optional(),
   is_active: z.boolean().optional(),
+  manage_attendance: z.boolean().optional(),
 });
 
 /** マスタ管理（管理者）: 車両作成/更新 */

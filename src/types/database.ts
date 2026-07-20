@@ -420,6 +420,7 @@ export type Database = {
           default_vehicle_no: string | null
           id: string
           is_active: boolean
+          manage_attendance: boolean
           line_chat_url: string | null
           line_user_id: string | null
           name: string
@@ -434,6 +435,7 @@ export type Database = {
           is_active?: boolean
           line_chat_url?: string | null
           line_user_id?: string | null
+          manage_attendance?: boolean
           name: string
           updated_at?: string
         }
@@ -446,6 +448,7 @@ export type Database = {
           is_active?: boolean
           line_chat_url?: string | null
           line_user_id?: string | null
+          manage_attendance?: boolean
           name?: string
           updated_at?: string
         }
@@ -677,6 +680,7 @@ export type Database = {
           actual_out: string | null
           clock_in_at: string | null
           clock_out_at: string | null
+          confirmed: boolean
           created_at: string
           driver_id: string
           edited_in: string | null
@@ -705,6 +709,7 @@ export type Database = {
           actual_out?: string | null
           clock_in_at?: string | null
           clock_out_at?: string | null
+          confirmed?: boolean
           created_at?: string
           driver_id: string
           edited_in?: string | null
@@ -733,6 +738,7 @@ export type Database = {
           actual_out?: string | null
           clock_in_at?: string | null
           clock_out_at?: string | null
+          confirmed?: boolean
           created_at?: string
           driver_id?: string
           edited_in?: string | null
