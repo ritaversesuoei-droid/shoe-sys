@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 const LABEL: Record<string, string> = {
-  departure: "出発",
-  leg_departure: "各駅出発",
+  departure: "出勤",
+  leg_departure: "長距離再出発",
   arrival: "到着",
   loading: "積込",
   unloading: "荷卸",

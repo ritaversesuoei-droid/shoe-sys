@@ -16,8 +16,8 @@ type EventType =
   | "clock_out";
 
 const CONFIG: Record<EventType, { label: string; items: "load" | "unload" | null; alcohol: boolean }> = {
-  departure: { label: "出発", items: null, alcohol: false },
-  leg_departure: { label: "各駅出発", items: null, alcohol: true },
+  departure: { label: "出勤", items: null, alcohol: false },
+  leg_departure: { label: "長距離再出発", items: null, alcohol: true },
   arrival: { label: "到着報告", items: null, alcohol: false },
   loading: { label: "積込完了", items: "load", alcohol: false },
   unloading: { label: "荷卸完了", items: "unload", alcohol: false },

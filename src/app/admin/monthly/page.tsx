@@ -83,33 +83,40 @@ export default async function MonthlyPage({
               </tr>
             </thead>
             <tbody>
-              {summary.map((s) => (
-                <tr key={s.driverId} className={`border-t ${s.violationCount > 0 ? "bg-rose-50" : ""}`}>
+              {summary.map((s) => {
+                const partner = !s.manageAttendance; // 協力店社（勤怠集計・労働チェック対象外）
+                return (
+                <tr key={s.driverId} className={`border-t ${partner ? "bg-slate-50 text-slate-400" : s.violationCount > 0 ? "bg-rose-50" : ""}`}>
                   <td className="p-3">
-                    <Link href={`/admin/attendance?month=${monthKey}&driver=${s.driverId}`} className="font-bold text-blue-700 hover:underline">
+                    <Link href={`/admin/attendance?month=${monthKey}&driver=${s.driverId}`} className={`font-bold hover:underline ${partner ? "text-slate-500" : "text-blue-700"}`}>
                       {s.driverName}
                     </Link>
                     <span className="ml-1 text-xs text-slate-400">{s.driverCode}</span>
+                    {partner && <span className="ml-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">協力・集計対象外</span>}
                   </td>
                   <td className="p-3 text-right">{s.workDays}日</td>
                   <td className="p-3 text-right font-mono">{hm(s.restraintMin)}</td>
                   <td className="p-3 text-right font-mono">{hm(s.laborMin)}</td>
-                  <td className="p-3 text-right font-mono">{hm(s.overtimeMin)}</td>
-                  <td className="p-3 text-right font-mono">{hm(s.holidayWorkMin)}</td>
+                  <td className="p-3 text-right font-mono">{partner ? "—" : hm(s.overtimeMin)}</td>
+                  <td className="p-3 text-right font-mono">{partner ? "—" : hm(s.holidayWorkMin)}</td>
                   <td className="p-3 text-right font-mono">{hm(s.nightMin)}</td>
                   <td className="p-3 text-center">
-                    {s.violationCount > 0
+                    {partner
+                      ? <span className="text-xs text-slate-400">対象外</span>
+                      : s.violationCount > 0
                       ? <span className="inline-block rounded-full bg-rose-600 px-2.5 py-1 text-sm font-bold text-white">⚠️ {s.violationCount}</span>
                       : <span className="text-slate-300">—</span>}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
       <p className="mt-3 text-xs text-slate-400">
         残業=労働−所定(8h)の累計、休日労働=休日(土日・祝日・手修正)の労働。時刻は H:MM。
+        <br />協力店社（🏢自社以外）は勤怠集計・労働チェックの対象外です（打刻履歴のみ・残業/休日/違反は算定しません）。
       </p>
 
       <HolidayManager month={monthKey} holidays={monthHolidays} initialOverrides={overrides} />

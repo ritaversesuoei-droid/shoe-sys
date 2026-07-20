@@ -21,6 +21,7 @@ export interface DriverMonthlySummary {
   driverId: string;
   driverCode: string | null;
   driverName: string;
+  manageAttendance: boolean; // ① false=協力店社（勤怠集計・労働チェックの対象外＝打刻のみ）
   workDays: number;
   restraintMin: number;
   laborMin: number;
@@ -67,7 +68,7 @@ export async function getMonthlySummary(
 
   let q = sb
     .from("shifts")
-    .select("driver_id, work_date, restraint_min, labor_min, night_min, drivers(code, name)")
+    .select("driver_id, work_date, restraint_min, labor_min, night_min, drivers(code, name, manage_attendance)")
     .eq("month_key", monthKey)
     .not("clock_out_at", "is", null)
     .order("work_date", { ascending: true });
@@ -87,13 +88,14 @@ export async function getMonthlySummary(
 
   const map = new Map<string, DriverMonthlySummary>();
   for (const s of shifts ?? []) {
-    const driver = s.drivers as { code: string; name: string } | null;
+    const driver = s.drivers as { code: string; name: string; manage_attendance: boolean } | null;
     let cur = map.get(s.driver_id);
     if (!cur) {
       cur = {
         driverId: s.driver_id,
         driverCode: driver?.code ?? null,
         driverName: driver?.name ?? "(不明)",
+        manageAttendance: driver?.manage_attendance !== false,
         workDays: 0,
         restraintMin: 0,
         laborMin: 0,
@@ -129,7 +131,9 @@ export async function getMonthlySummary(
   for (const v of map.values()) {
     v.workDays = new Set(v.byDay.map((d) => d.workDate)).size;
   }
-  return Array.from(map.values()).sort((a, b) =>
-    (a.driverCode ?? "").localeCompare(b.driverCode ?? ""),
-  );
+  // ① 自社（勤怠管理対象）を上、協力店社（集計対象外・打刻のみ）を下にまとめる
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.manageAttendance !== b.manageAttendance) return a.manageAttendance ? -1 : 1;
+    return (a.driverCode ?? "").localeCompare(b.driverCode ?? "");
+  });
 }

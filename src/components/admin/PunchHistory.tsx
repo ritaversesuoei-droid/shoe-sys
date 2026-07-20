@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
  * 勤怠修正・警告の両画面から、行を開いたときに GET /api/admin/shifts/:id を読んで表示する。
  */
 const LABEL: Record<string, string> = {
-  departure: "出発", leg_departure: "各駅出発", arrival: "到着", loading: "積込",
+  departure: "出勤", leg_departure: "長距離再出発", arrival: "到着", loading: "積込",
   unloading: "荷卸", long_rest: "長距離休憩", clock_out: "退勤", rest_start: "休憩開始", rest_end: "休憩終了",
 };
 
