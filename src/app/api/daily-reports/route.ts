@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireDriver } from "@/lib/auth";
 import { ok, fail, handle } from "@/lib/api/response";
 import { saveDailyReportSchema } from "@/lib/validation";
@@ -34,7 +35,9 @@ export async function POST(request: Request) {
   return handle(async () => {
     const ctx = await requireDriver();
     const body = saveDailyReportSchema.parse(await request.json());
-    const supabase = await createClient();
+    // 確定時は休憩反映→recomputeShift で compliance_alerts（管理者のみ書込可）を更新する
+    // サーバー内部処理。認証済み ctx.driverId に限定して service_role で実行。
+    const supabase = createAdminClient();
     const report = await saveDailyReport(supabase, ctx.driverId, body);
     return ok({ report }, body.id ? 200 : 201);
   });
