@@ -50,8 +50,11 @@ export function OfficeTerminal() {
 
   function unlock(e: React.FormEvent) {
     e.preventDefault();
-    localStorage.setItem("office_token", tokenInput);
-    setToken(tokenInput);
+    // コピペ時の前後空白・改行で「長さ不一致」になり弾かれるのを防ぐ（値は見えない password 入力のため気付けない）
+    const t = tokenInput.trim();
+    if (!t) return;
+    localStorage.setItem("office_token", t);
+    setToken(t);
     setError(null);
   }
 
@@ -128,6 +131,10 @@ export function OfficeTerminal() {
             placeholder="端末トークン"
             value={tokenInput}
             onChange={(e) => setTokenInput(e.target.value)}
+            autoCapitalize="off"
+            autoCorrect="off"
+            autoComplete="off"
+            spellCheck={false}
             className="rounded-xl border border-slate-300 px-4 py-4 text-center text-lg"
           />
           {error && <p className="text-center text-base text-red-600">{error}</p>}
