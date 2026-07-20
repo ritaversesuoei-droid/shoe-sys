@@ -68,7 +68,7 @@ export async function processPunch(
   if (exErr) throw exErr;
   if (existing) return { eventId: existing.id, shiftId: existing.shift_id, deduped: true };
 
-  // アルコールチェック必須（長距離各駅出発・長距離休憩 / 4.3.2）
+  // アルコールチェック必須（長距離再出発・長距離休憩 / 4.3.2）
   if (ALCOHOL_REQUIRED.includes(input.event_type) && input.alcohol_checked !== true) {
     throw new PunchError("アルコールチェックの実施が必要です");
   }

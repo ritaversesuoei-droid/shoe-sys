@@ -74,6 +74,8 @@ export function PunchForm({ type, driverId }: { type: EventType; driverId: strin
     setError(null);
     try {
       if (cfg.alcohol && !alcohol) throw new Error("アルコールチェックの確認が必要です");
+      // 長距離休憩・長距離再出発は確定表どおり「カメラでアルコールチェック撮影」を必須にする
+      if (cfg.alcohol && photos.length === 0) throw new Error("アルコールチェックの写真を撮影してください");
       if (vehicleNo) localStorage.setItem("shoei_vehicle_no", vehicleNo);
 
       const idempotencyKey = crypto.randomUUID();
@@ -211,9 +213,9 @@ export function PunchForm({ type, driverId }: { type: EventType; driverId: strin
           </div>
         )}
 
-        <div className="block">
-          <span className="text-sm text-slate-600">
-            写真{cfg.alcohol ? "（アルコールチェック / 荷姿 等）" : "（荷姿 等・任意）"}
+        <div className={cfg.alcohol ? "rounded-lg border border-amber-300 bg-amber-50 p-3" : "block"}>
+          <span className={`text-sm ${cfg.alcohol ? "font-medium text-amber-800" : "text-slate-600"}`}>
+            {cfg.alcohol ? "📷 アルコールチェック写真（必須・カメラで撮影）" : "写真（荷姿 等・任意）"}
           </span>
           <input
             type="file"
@@ -223,9 +225,11 @@ export function PunchForm({ type, driverId }: { type: EventType; driverId: strin
             onChange={(e) => setPhotos(Array.from(e.target.files ?? []).slice(0, 3))}
             className="mt-1 w-full text-sm"
           />
-          {photos.length > 0 && (
+          {photos.length > 0 ? (
             <p className="mt-1 text-xs text-slate-400">{photos.length}枚 選択（最大3枚・自動圧縮）</p>
-          )}
+          ) : cfg.alcohol ? (
+            <p className="mt-1 text-xs text-amber-700">アルコールチェッカーの結果をカメラで撮影してください</p>
+          ) : null}
         </div>
 
         {cfg.alcohol && (
