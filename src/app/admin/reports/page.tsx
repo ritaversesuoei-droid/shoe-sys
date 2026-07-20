@@ -69,7 +69,7 @@ export default async function ReportsPage({
       <section className="mb-6">
         <h2 className="mb-2 text-sm font-bold text-slate-700">日付・ドライバーを指定して表示</h2>
         <ReportPicker drivers={drivers ?? []} defaultDate={defaultDate} />
-        <p className="mt-1 text-xs text-slate-400">当日の運行データ（出発〜退勤）から印刷用日報を生成します。</p>
+        <p className="mt-1 text-xs text-slate-400">当日の運行データ（出勤〜退勤）から印刷用日報を生成します。</p>
       </section>
 
       <h2 className="mb-2 text-sm font-bold text-slate-700">提出済み日報（{monthInput}）</h2>

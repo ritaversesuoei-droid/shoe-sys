@@ -95,7 +95,7 @@ async function main() {
   await expectThrows("退勤(開勤務なし)はPunchError", () =>
     processPunch(sb, B, punch("clock_out", "2026-06-22T09:00:00+09:00")),
   );
-  await expectThrows("長距離各駅出発(アルコール無)はPunchError", () =>
+  await expectThrows("長距離再出発(アルコール無)はPunchError", () =>
     processPunch(sb, B, punch("leg_departure", "2026-06-22T09:00:00+09:00")),
   );
   await processPunch(sb, B, punch("departure", "2026-06-22T08:00:00+09:00"));
