@@ -60,14 +60,15 @@ export const saveDailyReportSchema = z.object({
   legs: z
     .array(
       z.object({
+        // 自動生成された日報明細は空欄を null で持つ（往復保存を通すため null 許容）
         seq: z.number().int().min(1).optional(),
-        shipper: z.string().optional(),
-        origin_spot: z.string().optional(),
-        destination_spot: z.string().optional(),
-        cargo: z.string().optional(),
-        receipts: z.string().optional(),
-        extra_work: z.string().optional(),
-        meter: z.number().optional(),
+        shipper: z.string().nullish(),
+        origin_spot: z.string().nullish(),
+        destination_spot: z.string().nullish(),
+        cargo: z.string().nullish(),
+        receipts: z.string().nullish(),
+        extra_work: z.string().nullish(),
+        meter: z.number().nullish(),
         confirmed: z.boolean().optional(),
       }),
     )
@@ -77,9 +78,9 @@ export const saveDailyReportSchema = z.object({
       z.object({
         seq: z.number().int().min(1).optional(),
         rest_type: z.enum(["rest", "sleep"]).default("rest"),
-        place: z.string().optional(),
-        start_at: z.string().optional(),
-        end_at: z.string().optional(),
+        place: z.string().nullish(),
+        start_at: z.string().nullish(),
+        end_at: z.string().nullish(),
         duration_min: z.number().int().optional(),
       }),
     )
