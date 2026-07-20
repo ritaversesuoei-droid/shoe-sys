@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/photo";
@@ -45,9 +45,24 @@ export function PunchForm({ type, driverId }: { type: EventType; driverId: strin
   const [note, setNote] = useState("");
   const [items, setItems] = useState<Item[]>(cfg.items ? [{}] : []);
   const [photos, setPhotos] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
+
+  // 撮影ごとのプレビュー用オブジェクトURL（変更時に発行・破棄してリークを防ぐ）
+  useEffect(() => {
+    const urls = photos.map((p) => URL.createObjectURL(p));
+    setPreviews(urls);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, [photos]);
+
+  function addPhoto(list: FileList | null) {
+    const f = list?.[0];
+    if (!f) return;
+    setPhotos((prev) => (prev.length >= 3 ? prev : [...prev, f]));
+  }
 
   // 既定車番の復元 + 位置情報の取得
   useEffect(() => {
@@ -217,19 +232,56 @@ export function PunchForm({ type, driverId }: { type: EventType; driverId: strin
           <span className={`text-sm ${cfg.alcohol ? "font-medium text-amber-800" : "text-slate-600"}`}>
             {cfg.alcohol ? "📷 アルコールチェック写真（必須・カメラで撮影）" : "写真（荷姿 等・任意）"}
           </span>
+
+          {/* 保存済みファイルの選択ではなく、その場でカメラを起動して撮影する */}
           <input
+            ref={photoInputRef}
             type="file"
             accept="image/*"
             capture="environment"
-            multiple
-            onChange={(e) => setPhotos(Array.from(e.target.files ?? []).slice(0, 3))}
-            className="mt-1 w-full text-sm"
+            hidden
+            onChange={(e) => {
+              addPhoto(e.target.files);
+              e.target.value = ""; // 同じ入力で続けて撮影できるようにリセット
+            }}
           />
-          {photos.length > 0 ? (
-            <p className="mt-1 text-xs text-slate-400">{photos.length}枚 選択（最大3枚・自動圧縮）</p>
-          ) : cfg.alcohol ? (
-            <p className="mt-1 text-xs text-amber-700">アルコールチェッカーの結果をカメラで撮影してください</p>
-          ) : null}
+
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {previews.map((src, i) => (
+              <div key={i} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt={`写真${i + 1}`} className="h-20 w-20 rounded-lg border border-slate-300 object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+                  aria-label={`写真${i + 1}を削除`}
+                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-sm text-white"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {photos.length < 3 && (
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className={`flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed text-xs font-medium ${
+                  cfg.alcohol ? "border-amber-400 bg-white/60 text-amber-700" : "border-slate-300 text-slate-500"
+                }`}
+              >
+                <span className="text-2xl leading-none">📷</span>
+                {photos.length === 0 ? "カメラを起動" : "追加"}
+              </button>
+            )}
+          </div>
+
+          <p className={`mt-1.5 text-xs ${cfg.alcohol && photos.length === 0 ? "text-amber-700" : "text-slate-400"}`}>
+            {photos.length > 0
+              ? `${photos.length}枚 撮影（最大3枚・自動圧縮）`
+              : cfg.alcohol
+                ? "アルコールチェッカーの結果をカメラで撮影してください"
+                : "「カメラを起動」でその場で撮影します（最大3枚）"}
+          </p>
         </div>
 
         {cfg.alcohol && (

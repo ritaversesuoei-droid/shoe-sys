@@ -324,7 +324,7 @@ export async function assembleDailyReport(
 //   業務ルール: status=draft は一時書き（緩い）。status=confirmed は確定（バリデーション必須）。
 //   長距離休憩では確定しない（呼び出し側の打刻種別で制御）。
 // ------------------------------------------------------------
-type RestInput = { duration_min?: number; start_at?: string; end_at?: string };
+type RestInput = { duration_min?: number; start_at?: string | null; end_at?: string | null };
 
 function restDuration(r: RestInput): number {
   if (r.duration_min != null) return r.duration_min;
