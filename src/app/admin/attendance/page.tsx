@@ -20,13 +20,14 @@ function normalizeMonth(v: string | undefined): string {
 export default async function AttendancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; driver?: string }>;
+  searchParams: Promise<{ month?: string; driver?: string; view?: string; focus?: string }>;
 }) {
   const ctx = await getSessionContext();
   if (!ctx) redirect("/admin/login");
   if (ctx.role !== "admin") return <main className="p-6 text-red-600">管理者権限が必要です。</main>;
 
-  const { month, driver } = await searchParams;
+  const { month, driver, view, focus } = await searchParams;
+  const folder = view === "confirmed" ? "confirmed" : view === "all" ? "all" : "unconfirmed";
   const monthKey = normalizeMonth(month);
   const monthInput = `${monthKey.slice(0, 4)}-${monthKey.slice(4)}`;
 
@@ -40,11 +41,13 @@ export default async function AttendancePage({
   let q = supabase
     .from("shifts")
     .select(
-      "id, work_date, actual_in, actual_out, edited_in, edited_out, edited_in_adj_days, edited_out_adj_days, rest_time, restraint_min, labor_min, night_min, warn_restraint, warn_rest, revision_status, revision_reason, crew_type, ferry_min, split_rest, clock_in_at, clock_out_at, drivers(code, name)",
+      "id, work_date, actual_in, actual_out, edited_in, edited_out, edited_in_adj_days, edited_out_adj_days, rest_time, restraint_min, labor_min, night_min, warn_restraint, warn_rest, revision_status, revision_reason, crew_type, ferry_min, split_rest, confirmed, clock_in_at, clock_out_at, drivers(code, name)",
     )
     .eq("month_key", monthKey)
     .order("work_date", { ascending: true });
   if (driver) q = q.eq("driver_id", driver);
+  if (folder === "confirmed") q = q.eq("confirmed", true);
+  else if (folder === "unconfirmed") q = q.eq("confirmed", false);
   const { data: shifts } = await q;
 
   // 確定時刻(timestamptz)から JST の HH:MM:SS を得る（打刻由来で actual_in/out が無い勤務の既定値補完用）
@@ -72,6 +75,7 @@ export default async function AttendancePage({
       revisionStatus: s.revision_status,
       revisionReason: s.revision_reason,
       closed: s.clock_out_at != null,
+      confirmed: s.confirmed ?? false,
       crewType: s.crew_type ?? "single",
       ferryMin: s.ferry_min ?? 0,
       splitRest: s.split_rest ?? false,
@@ -98,10 +102,27 @@ export default async function AttendancePage({
         </form>
       </header>
 
+      <div className="mb-4 flex gap-2">
+        {(["unconfirmed", "confirmed", "all"] as const).map((v) => {
+          const p = new URLSearchParams();
+          p.set("month", monthKey);
+          if (driver) p.set("driver", driver);
+          if (v !== "unconfirmed") p.set("view", v);
+          const label = v === "unconfirmed" ? "🗂 未確認" : v === "confirmed" ? "✅ 確認済み" : "すべて";
+          return (
+            <a key={v} href={`/admin/attendance?${p.toString()}`}
+              className={`rounded-full px-5 py-2 text-sm font-bold ${folder === v ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}>
+              {label}
+            </a>
+          );
+        })}
+      </div>
       {rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-slate-400">{monthKey} の勤務データがありません</p>
+        <p className="rounded-lg border border-dashed p-8 text-center text-slate-400">
+          {folder === "confirmed" ? "確認済みの勤務はありません" : folder === "unconfirmed" ? "未確認の勤務はありません（すべて確認済み）" : `${monthKey} の勤務データがありません`}
+        </p>
       ) : (
-        <AttendanceTable rows={rows} />
+        <AttendanceTable rows={rows} focus={focus} />
       )}
       <p className="mt-3 text-xs text-slate-400">
         修正出勤/退勤(HH:MM)・補正(翌日=1)・休憩(分)・理由を編集し「保存」。拘束/労働/深夜・違反が再計算されます（週起算=日曜）。<br />

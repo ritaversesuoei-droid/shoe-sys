@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { alertLabel } from "@/lib/alert-labels";
+import { PunchHistory } from "./PunchHistory";
 
 interface DetailItem {
   type?: string;
@@ -10,6 +12,8 @@ interface DetailItem {
 }
 interface Warning {
   id: string;
+  shift_id: string | null;
+  driver_id: string;
   work_date: string;
   month_key: string;
   alert_types: string[];
@@ -23,6 +27,10 @@ interface Warning {
   correction_note: string | null;
   corrected_at: string | null;
   drivers: { code: string; name: string } | null;
+  // ③(5) 時刻
+  clock_in: string | null;
+  clock_out: string | null;
+  prev_clock_out: string | null;
 }
 
 type Filter = "open" | "resolved" | "all";
@@ -31,6 +39,12 @@ function hm(min: number | null): string {
   if (min == null) return "-";
   const h = Math.floor(min / 60);
   return `${h}:${String(min % 60).padStart(2, "0")}`;
+}
+function hhmmIso(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(Date.parse(iso) + 9 * 3600 * 1000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 }
 
 export function WarningList() {
@@ -41,6 +55,7 @@ export function WarningList() {
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [openHistory, setOpenHistory] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setItems(null);
@@ -133,10 +148,37 @@ export function WarningList() {
               <div className="mt-2 text-sm text-slate-600">
                 拘束 {hm(w.restraint_min)} / 労働 {hm(w.labor_min)} / 休息 {hm(w.rest_period_min)} / 深夜 {hm(w.night_min)}
               </div>
+              {/* ③(5) 前日退勤・当日出勤・当日退勤 */}
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-500">
+                <span>前日退勤 <b className="font-mono text-slate-700">{hhmmIso(w.prev_clock_out)}</b></span>
+                <span>当日出勤 <b className="font-mono text-slate-700">{hhmmIso(w.clock_in)}</b></span>
+                <span>当日退勤 <b className="font-mono text-slate-700">{hhmmIso(w.clock_out)}</b></span>
+              </div>
               {detail.length > 0 && (
                 <ul className="mt-1 text-xs text-slate-500">
                   {detail.filter((d) => d.severity !== "info").map((d, i) => <li key={i}>・{d.message}</li>)}
                 </ul>
+              )}
+
+              {/* ③(3) 勤怠修正で編集 / ③(4) 1日の動き */}
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+                <Link
+                  href={`/admin/attendance?month=${w.month_key}&view=all${w.driver_id ? `&driver=${w.driver_id}` : ""}${w.shift_id ? `&focus=${w.shift_id}` : ""}`}
+                  className="font-medium text-blue-600 hover:underline"
+                >
+                  ✏️ 勤怠修正で編集
+                </Link>
+                {w.shift_id && (
+                  <button
+                    onClick={() => setOpenHistory((v) => (v === w.id ? null : w.id))}
+                    className="text-slate-600 hover:underline"
+                  >
+                    {openHistory === w.id ? "▲ 閉じる" : "▼ 1日の動き"}
+                  </button>
+                )}
+              </div>
+              {openHistory === w.id && w.shift_id && (
+                <div className="mt-2"><PunchHistory shiftId={w.shift_id} /></div>
               )}
 
               {w.status === "resolved" ? (
