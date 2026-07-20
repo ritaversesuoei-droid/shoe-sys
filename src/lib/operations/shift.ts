@@ -142,7 +142,16 @@ async function persistShiftMetrics(
     ferryMin: shift.ferry_min ?? 0,
     splitRest: shift.split_rest === true,
   };
-  const judgement = judgeShift(metrics, config, { extendedCountThisWeek: count ?? 0 }, workMode);
+  // ① 協力店社（manage_attendance=false）は勤怠管理の対象外＝違反判定しない（打刻履歴・指標は残す）
+  const { data: drv } = await sb
+    .from("drivers")
+    .select("manage_attendance")
+    .eq("id", shift.driver_id)
+    .maybeSingle();
+  const manageAttendance = drv?.manage_attendance !== false;
+  const judgement: ShiftJudgement = manageAttendance
+    ? judgeShift(metrics, config, { extendedCountThisWeek: count ?? 0 }, workMode)
+    : { items: [], alertTypes: [], hasViolation: false };
 
   const warnRestraint =
     judgement.items.find((i) => i.type === "restraint" && i.severity !== "info")?.message ?? null;
@@ -182,6 +191,9 @@ async function persistShiftMetrics(
       { onConflict: "shift_id" },
     );
     if (alertErr) throw alertErr;
+  } else {
+    // 違反なし（または協力店社＝対象外）: 既存の警告があれば解消（削除して再計算で解消）
+    await sb.from("compliance_alerts").delete().eq("shift_id", shift.id);
   }
 
   return { metrics, judgement };
