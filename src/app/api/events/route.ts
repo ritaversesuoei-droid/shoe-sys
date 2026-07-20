@@ -11,7 +11,7 @@ import { toWorkDate } from "@/lib/datekey";
  *
  * パイプライン（src/lib/operations/punch.ts processPunch）:
  *   1. 冪等チェック（idempotency_key / 4.3.4）
- *   2. アルコールチェック必須（長距離各駅出発・長距離休憩 / 4.3.2）
+ *   2. アルコールチェック必須（長距離再出発・長距離休憩 / 4.3.2）
  *   3. 二重打刻防止（4.3.3）
  *   4. 勤務連結（出発系=新規作成 / 退勤・休憩=クローズ）
  *   5. events 挿入（+ event_items / event_photos）
