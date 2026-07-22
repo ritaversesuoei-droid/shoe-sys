@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { toWorkDate } from "@/lib/datekey";
+import { DispatchSyncButton } from "@/components/admin/DispatchSyncButton";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +62,9 @@ export default async function DispatchPage({
         <div>
           <h1 className="text-2xl font-bold">配車表（流れ表）</h1>
           <Link href="/admin" className="text-sm text-blue-600">← ダッシュボード</Link>
+          <p className="mt-1 text-xs text-slate-400">データ源: TROUD由来「流れ表」スプレッドシート</p>
         </div>
+        <DispatchSyncButton />
         <div className="flex items-center gap-2">
           <Link href={`/admin/dispatch?date=${shift(-1)}`} className="rounded-xl bg-slate-200 px-4 py-3 text-base font-bold text-slate-700 hover:bg-slate-300">◀ 前日</Link>
           <form method="GET" className="flex items-center gap-2">
