@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, TablesInsert } from "@/types/database";
-import { parseCsvRows, cleanText, cleanCode, parseDateLoose } from "./cleanse";
+import type { Database } from "@/types/database";
+import { parseCsvRows } from "./cleanse";
 import { createDriverResolver } from "./roster";
+import { buildDispatchPayload } from "./dispatch-map";
 
 type SB = SupabaseClient<Database>;
 
@@ -35,43 +36,7 @@ export async function importDispatchCsv(
   const resolver = createDriverResolver(sb);
   await resolver.preload();
 
-  const payload: TablesInsert<"dispatch_plans">[] = [];
-  let skipped = 0;
-
-  for (const r of dataRows) {
-    const planDate = parseDateLoose(r[4]);
-    if (!planDate) {
-      skipped += 1;
-      continue;
-    }
-    const affiliation = cleanText(r[0]);
-    const name = cleanText(r[1]);
-    const isSub = !!affiliation && !affiliation.includes("昭栄");
-    const driverId = !isSub && name
-      ? await resolver.resolve(name, { affiliation, create: true })
-      : null;
-
-    const note = [
-      cleanText(r[9]),
-      r[6] ? `発:${cleanText(r[6])}` : "",
-      r[7] ? `着日:${parseDateLoose(r[7]) ?? cleanText(r[7])}` : "",
-      r[11] ? `順:${cleanText(r[11])}` : "",
-    ]
-      .filter(Boolean)
-      .join(" / ");
-
-    payload.push({
-      plan_date: planDate,
-      driver_id: driverId,
-      driver_name_raw: name || null,
-      vehicle_no: cleanCode(r[3]) || null,
-      shipper: cleanText(r[5]) || null,
-      delivery_spot: cleanText(r[8]) || null,
-      highway_instruction: cleanText(r[10]) || null,
-      is_subcontract: isSub,
-      note: note || null,
-    });
-  }
+  const { payload, skipped } = await buildDispatchPayload(dataRows, resolver);
 
   // バッチ投入（500件単位）
   let inserted = 0;
