@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { toWorkDate } from "@/lib/datekey";
 import { DispatchSyncButton } from "@/components/admin/DispatchSyncButton";
 import { PrintButton } from "@/components/admin/PrintButton";
-import { DispatchRealtime } from "@/components/admin/DispatchRealtime";
+import { DispatchTable } from "@/components/admin/DispatchTable";
 
 export const dynamic = "force-dynamic";
 
@@ -68,8 +68,7 @@ export default async function DispatchPage({
           <h1 className="text-2xl font-bold">配車表（流れ表）</h1>
           <Link href="/admin" className="text-sm text-blue-600">← ダッシュボード</Link>
           <div className="mt-1 flex items-center gap-3">
-            <p className="text-xs text-slate-400">データ源: TROUD（直連携 or 流れ表シート）</p>
-            <DispatchRealtime />
+            <p className="text-xs text-slate-400">データ源: TROUD（流れ表シート）。取込は同期ボタンを押したときだけ・自動反映なし</p>
           </div>
         </div>
         <DispatchSyncButton />
@@ -97,45 +96,20 @@ export default async function DispatchPage({
         )}
       </p>
 
-      {rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-slate-400">{day} の配車データがありません</p>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border print:overflow-visible print:border-0">
-          <table className="w-full text-sm print:text-[10px]">
-            <thead className="bg-slate-50 text-left">
-              <tr>
-                <th className="p-2 whitespace-nowrap">所属</th>
-                <th className="p-2 whitespace-nowrap">ドライバー</th>
-                <th className="p-2 whitespace-nowrap">車両</th>
-                <th className="p-2 whitespace-nowrap">荷主</th>
-                <th className="p-2">着荷地</th>
-                <th className="p-2 whitespace-nowrap">高速</th>
-                <th className="p-2">備考</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const d = r.drivers as { name: string } | null;
-                return (
-                  <tr key={r.id} className="border-t align-top">
-                    <td className="p-3 whitespace-nowrap">
-                      <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-bold ${r.is_subcontract ? "bg-orange-100 text-orange-700" : "bg-sky-100 text-sky-700"}`}>
-                        {r.is_subcontract ? "🚚 子車" : "🏢 自社"}
-                      </span>
-                    </td>
-                    <td className="p-3 whitespace-nowrap font-bold">{d?.name ?? r.driver_name_raw ?? "—"}</td>
-                    <td className="p-3 whitespace-nowrap">{r.vehicle_no ?? "—"}</td>
-                    <td className="p-3 whitespace-nowrap">{r.shipper ?? "—"}</td>
-                    <td className="p-3">{r.delivery_spot ?? "—"}</td>
-                    <td className="p-3 whitespace-nowrap">{r.highway_instruction ? `🛣️ ${r.highway_instruction}` : ""}</td>
-                    <td className="p-3 text-xs text-slate-500 max-w-[20rem]">{r.note ?? ""}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DispatchTable
+        date={day}
+        rows={rows.map((r) => ({
+          id: r.id,
+          driver_name_raw: r.driver_name_raw,
+          driver_name: (r.drivers as { name: string } | null)?.name ?? null,
+          vehicle_no: r.vehicle_no,
+          shipper: r.shipper,
+          delivery_spot: r.delivery_spot,
+          highway_instruction: r.highway_instruction,
+          is_subcontract: r.is_subcontract,
+          note: r.note,
+        }))}
+      />
     </main>
   );
 }

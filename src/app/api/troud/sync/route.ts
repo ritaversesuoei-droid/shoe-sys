@@ -37,8 +37,14 @@ export async function POST(request: Request) {
     // 空行除去
     dataRows = dataRows.filter((r) => r.some((c) => c && c.trim()));
 
+    // 自動反映は既定で無効（配車表の手修正を上書きしないため）。
+    // TROUD_AUTO_APPLY=1 を明示した場合のみ書込む。通常は管理者が「同期」ボタンで取り込む。
+    if (process.env.TROUD_AUTO_APPLY !== "1") {
+      return ok({ received: dataRows.length, applied: false, note: "自動反映は無効です。配車表の同期ボタンから取り込んでください。" });
+    }
+
     const admin = createAdminClient();
     const result = await applyDispatchRows(admin, dataRows);
-    return ok({ ...result });
+    return ok({ ...result, applied: true });
   });
 }
