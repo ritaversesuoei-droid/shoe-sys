@@ -342,19 +342,28 @@ export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driv
 
             {items.map((it, i) => (
               <div key={i} className="rounded-lg border border-slate-200 p-3">
-                <div className="mb-2 text-xs text-slate-400">{i + 1}件目</div>
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs text-slate-400">{i + 1}件目</span>
+                  <button
+                    type="button"
+                    onClick={() => setItems((p) => p.filter((_, idx) => idx !== i))}
+                    className="rounded px-2 py-0.5 text-xs font-bold text-red-500 hover:bg-red-50"
+                  >
+                    🗑 削除
+                  </button>
+                </div>
                 {cfg.items === "load" ? (
                   <div className="grid grid-cols-2 gap-2">
                     <input placeholder="荷主" value={it.shipper ?? ""} onChange={(e) => updateItem(i, { shipper: e.target.value })} className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
                     <input placeholder="着荷地" value={it.delivery_spot ?? ""} onChange={(e) => updateItem(i, { delivery_spot: e.target.value })} className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <input placeholder="数量" value={it.quantity ?? ""} onChange={(e) => updateItem(i, { quantity: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <input placeholder="重量" value={it.weight ?? ""} onChange={(e) => updateItem(i, { weight: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <input placeholder="伝票" value={it.slip_no ?? ""} onChange={(e) => updateItem(i, { slip_no: e.target.value })} className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <input placeholder="数量" inputMode="decimal" value={it.quantity ?? ""} onChange={(e) => updateItem(i, { quantity: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <input placeholder="重量" inputMode="decimal" value={it.weight ?? ""} onChange={(e) => updateItem(i, { weight: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <input placeholder="伝票" inputMode="numeric" value={it.slip_no ?? ""} onChange={(e) => updateItem(i, { slip_no: e.target.value })} className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
                     <input placeholder="品種確認" value={it.cargo_type ?? ""} onChange={(e) => updateItem(i, { cargo_type: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <input placeholder="受領書枚数" value={it.receipts ?? ""} onChange={(e) => updateItem(i, { receipts: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <input placeholder="受領書枚数" inputMode="numeric" value={it.receipts ?? ""} onChange={(e) => updateItem(i, { receipts: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
                   </div>
                 )}
               </div>
