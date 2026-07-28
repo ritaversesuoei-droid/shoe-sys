@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionContext } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getTimBoard } from "@/lib/operations/tim-board";
 import { to_month_key, toWorkDate } from "@/lib/datekey";
 import { TimBoard } from "@/components/admin/TimBoard";
@@ -23,7 +23,8 @@ export default async function TimPage({
   const { date } = await searchParams;
   const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : toWorkDate(new Date());
 
-  const supabase = await createClient();
+  // 管理者専用ページ。非公開バケット(event-photos)の署名URL発行のため service_role で取得。
+  const supabase = createAdminClient();
   const [rows, usage] = await Promise.all([
     getTimBoard(supabase, day),
     supabase
