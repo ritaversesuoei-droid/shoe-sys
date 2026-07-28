@@ -1,5 +1,5 @@
 import type { TablesInsert } from "@/types/database";
-import { cleanText, cleanCode, parseDateLoose } from "./cleanse";
+import { cleanText, cleanCode, parseDateLoose, parseNumberLoose } from "./cleanse";
 import type { createDriverResolver } from "./roster";
 
 type Resolver = ReturnType<typeof createDriverResolver>;
@@ -48,10 +48,14 @@ export async function buildDispatchPayload(
       driver_name_raw: name || null,
       vehicle_no: cleanCode(r[3]) || null,
       shipper: cleanText(r[5]) || null,
+      origin_spot: cleanText(r[6]) || null, // 積地(発地)
       delivery_spot: cleanText(r[8]) || null,
+      arrival_date: r[7] ? parseDateLoose(r[7]) : null, // 着荷日
+      arrival_time: cleanText(r[9]) || null, // 到着時間指定
       highway_instruction: cleanText(r[10]) || null,
+      sort_no: parseNumberLoose(r[11]), // 表示順
       is_subcontract: isSub,
-      note: note || null,
+      note: note || null, // 既存 /admin/dispatch 互換
     });
   }
 

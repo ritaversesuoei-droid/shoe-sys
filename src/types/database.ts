@@ -361,6 +361,8 @@ export type Database = {
       }
       dispatch_plans: {
         Row: {
+          arrival_date: string | null
+          arrival_time: string | null
           created_at: string
           delivery_spot: string | null
           driver_id: string | null
@@ -369,12 +371,16 @@ export type Database = {
           id: string
           is_subcontract: boolean
           note: string | null
+          origin_spot: string | null
           plan_date: string
           shipper: string | null
+          sort_no: number | null
           updated_at: string
           vehicle_no: string | null
         }
         Insert: {
+          arrival_date?: string | null
+          arrival_time?: string | null
           created_at?: string
           delivery_spot?: string | null
           driver_id?: string | null
@@ -383,12 +389,16 @@ export type Database = {
           id?: string
           is_subcontract?: boolean
           note?: string | null
+          origin_spot?: string | null
           plan_date: string
           shipper?: string | null
+          sort_no?: number | null
           updated_at?: string
           vehicle_no?: string | null
         }
         Update: {
+          arrival_date?: string | null
+          arrival_time?: string | null
           created_at?: string
           delivery_spot?: string | null
           driver_id?: string | null
@@ -397,8 +407,10 @@ export type Database = {
           id?: string
           is_subcontract?: boolean
           note?: string | null
+          origin_spot?: string | null
           plan_date?: string
           shipper?: string | null
+          sort_no?: number | null
           updated_at?: string
           vehicle_no?: string | null
         }
@@ -420,9 +432,9 @@ export type Database = {
           default_vehicle_no: string | null
           id: string
           is_active: boolean
-          manage_attendance: boolean
           line_chat_url: string | null
           line_user_id: string | null
+          manage_attendance: boolean
           name: string
           updated_at: string
         }
@@ -682,11 +694,13 @@ export type Database = {
           clock_out_at: string | null
           confirmed: boolean
           created_at: string
+          crew_type: string
           driver_id: string
           edited_in: string | null
           edited_in_adj_days: number
           edited_out: string | null
           edited_out_adj_days: number
+          ferry_min: number
           id: string
           labor_min: number | null
           month_key: string
@@ -696,8 +710,6 @@ export type Database = {
           restraint_min: number | null
           revision_reason: string | null
           revision_status: string
-          crew_type: string
-          ferry_min: number
           split_rest: boolean
           updated_at: string
           warn_rest: string | null
@@ -711,11 +723,13 @@ export type Database = {
           clock_out_at?: string | null
           confirmed?: boolean
           created_at?: string
+          crew_type?: string
           driver_id: string
           edited_in?: string | null
           edited_in_adj_days?: number
           edited_out?: string | null
           edited_out_adj_days?: number
+          ferry_min?: number
           id?: string
           labor_min?: number | null
           month_key: string
@@ -725,8 +739,6 @@ export type Database = {
           restraint_min?: number | null
           revision_reason?: string | null
           revision_status?: string
-          crew_type?: string
-          ferry_min?: number
           split_rest?: boolean
           updated_at?: string
           warn_rest?: string | null
@@ -740,11 +752,13 @@ export type Database = {
           clock_out_at?: string | null
           confirmed?: boolean
           created_at?: string
+          crew_type?: string
           driver_id?: string
           edited_in?: string | null
           edited_in_adj_days?: number
           edited_out?: string | null
           edited_out_adj_days?: number
+          ferry_min?: number
           id?: string
           labor_min?: number | null
           month_key?: string
@@ -754,8 +768,6 @@ export type Database = {
           restraint_min?: number | null
           revision_reason?: string | null
           revision_status?: string
-          crew_type?: string
-          ferry_min?: number
           split_rest?: boolean
           updated_at?: string
           warn_rest?: string | null
@@ -950,7 +962,7 @@ export const Constants = {
   },
 } as const
 
-// --- 便利型エイリアス（CHECK制約列のリテラル型 / 手動補完） ---
+// --- 手書き補助型（db:types 再生成で消えるため末尾に維持） ---
 export type ProfileRole = "admin" | "driver";
 export type EventType =
   | "departure"
