@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { toWorkDate } from "@/lib/datekey";
 import { DispatchSyncButton } from "@/components/admin/DispatchSyncButton";
 import { PrintButton } from "@/components/admin/PrintButton";
+import { DispatchRealtime } from "@/components/admin/DispatchRealtime";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,10 @@ export default async function DispatchPage({
         <div>
           <h1 className="text-2xl font-bold">配車表（流れ表）</h1>
           <Link href="/admin" className="text-sm text-blue-600">← ダッシュボード</Link>
-          <p className="mt-1 text-xs text-slate-400">データ源: TROUD由来「流れ表」スプレッドシート</p>
+          <div className="mt-1 flex items-center gap-3">
+            <p className="text-xs text-slate-400">データ源: TROUD（直連携 or 流れ表シート）</p>
+            <DispatchRealtime />
+          </div>
         </div>
         <DispatchSyncButton />
         <div className="flex items-center gap-2">

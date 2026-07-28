@@ -50,7 +50,15 @@ export async function syncDispatchFromSheet(
 
   const rows = parseCsvRows(csv);
   const dataRows = rows.slice(1).filter((r) => r.some((c) => c && c.trim()));
+  return applyDispatchRows(sb, dataRows);
+}
 
+/**
+ * 配車の行データ → dispatch_plans に反映する共通処理（シートCSV・TROUD直連携JSONの両方から使用）。
+ * 行の列順: [0所属, 1ドライバー名, 2携帯, 3車両NO, 4積込日, 5荷主, 6積地, 7着荷日, 8着荷地, 9注意, 10高速, 11表示順]。
+ * 積込日レンジのみ置換し、範囲外の履歴は保持する。
+ */
+export async function applyDispatchRows(sb: SB, dataRows: string[][]): Promise<DispatchSyncResult> {
   const resolver = createDriverResolver(sb);
   await resolver.preload();
   const { payload, skipped, dates } = await buildDispatchPayload(dataRows, resolver);
@@ -59,7 +67,6 @@ export async function syncDispatchFromSheet(
   const from = sorted[0] ?? null;
   const to = sorted[sorted.length - 1] ?? null;
 
-  // シートに載っている積込日レンジのみ置換（範囲外の過去データは残す）
   if (from && to) {
     const { error: delErr } = await sb
       .from("dispatch_plans")
