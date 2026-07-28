@@ -22,6 +22,8 @@ export interface TimEvent {
   address: string | null;
   customer: string | null;
   note: string | null;
+  lat: number | null;
+  lng: number | null;
   items: TimItem[];
 }
 export interface TimRow {
@@ -30,6 +32,7 @@ export interface TimRow {
   code: string | null;
   status: TimStatus;
   lastAt: string | null;
+  lineUserId: string | null;
   events: TimEvent[];
 }
 
@@ -59,7 +62,7 @@ export async function getTimBoard(sb: SB, dateStr: string): Promise<TimRow[]> {
   const { data: events, error } = await sb
     .from("events")
     .select(
-      "id, driver_id, event_type, occurred_at, address, note, drivers(code, name), customers(name), event_items(shipper, delivery_spot, quantity, weight, cargo_type, receipts, slip_no)",
+      "id, driver_id, event_type, occurred_at, address, note, lat, lng, drivers(code, name, line_user_id), customers(name), event_items(shipper, delivery_spot, quantity, weight, cargo_type, receipts, slip_no)",
     )
     .gte("occurred_at", start)
     .lt("occurred_at", end)
@@ -68,7 +71,7 @@ export async function getTimBoard(sb: SB, dateStr: string): Promise<TimRow[]> {
 
   const map = new Map<string, TimRow>();
   for (const e of events ?? []) {
-    const drv = e.drivers as { code: string; name: string } | null;
+    const drv = e.drivers as { code: string; name: string; line_user_id: string | null } | null;
     const cust = e.customers as { name: string } | null;
     let row = map.get(e.driver_id);
     if (!row) {
@@ -78,6 +81,7 @@ export async function getTimBoard(sb: SB, dateStr: string): Promise<TimRow[]> {
         code: drv?.code ?? null,
         status: "idle",
         lastAt: null,
+        lineUserId: drv?.line_user_id ?? null,
         events: [],
       };
       map.set(e.driver_id, row);
@@ -89,6 +93,8 @@ export async function getTimBoard(sb: SB, dateStr: string): Promise<TimRow[]> {
       address: e.address,
       customer: cust?.name ?? null,
       note: e.note,
+      lat: e.lat,
+      lng: e.lng,
       items: (e.event_items ?? []) as TimItem[],
     });
     row.lastAt = e.occurred_at;
