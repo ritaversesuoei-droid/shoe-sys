@@ -35,9 +35,8 @@ interface Item {
   receipts?: string;
 }
 
-export function PunchForm({ type, driverId }: { type: EventType; driverId: string }) {
+export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driverId: string; vehicleNo: string | null }) {
   const cfg = CONFIG[type];
-  const [vehicleNo, setVehicleNo] = useState("");
   const [address, setAddress] = useState("");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geoState, setGeoState] = useState<"idle" | "ok" | "error">("idle");
@@ -64,10 +63,8 @@ export function PunchForm({ type, driverId }: { type: EventType; driverId: strin
     setPhotos((prev) => (prev.length >= 3 ? prev : [...prev, f]));
   }
 
-  // 既定車番の復元 + 位置情報の取得
+  // 位置情報の取得（車番はドライバー割当で確定・入力不要）
   useEffect(() => {
-    const saved = localStorage.getItem("shoei_vehicle_no");
-    if (saved) setVehicleNo(saved);
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (p) => {
@@ -91,7 +88,6 @@ export function PunchForm({ type, driverId }: { type: EventType; driverId: strin
       if (cfg.alcohol && !alcohol) throw new Error("アルコールチェックの確認が必要です");
       // 長距離休憩・長距離再出発は確定表どおり「カメラでアルコールチェック撮影」を必須にする
       if (cfg.alcohol && photos.length === 0) throw new Error("アルコールチェックの写真を撮影してください");
-      if (vehicleNo) localStorage.setItem("shoei_vehicle_no", vehicleNo);
 
       const idempotencyKey = crypto.randomUUID();
 
@@ -169,19 +165,13 @@ export function PunchForm({ type, driverId }: { type: EventType; driverId: strin
       <header className="mb-4 flex items-center gap-2">
         <Link href="/driver" className="text-slate-400">←</Link>
         <h1 className="text-xl font-bold">{cfg.label}</h1>
+        {/* 車番は割当で確定。入力せず小さく表示するだけ */}
+        <span className="ml-auto rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">
+          車番 {vehicleNo || "未設定"}
+        </span>
       </header>
 
       <div className="flex flex-col gap-4">
-        <label className="block">
-          <span className="text-sm text-slate-600">車番</span>
-          <input
-            value={vehicleNo}
-            onChange={(e) => setVehicleNo(e.target.value)}
-            placeholder="例: 1001"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-          />
-        </label>
-
         <label className="block">
           <span className="text-sm text-slate-600">場所（任意）</span>
           <input
