@@ -48,10 +48,22 @@ interface Plan {
   note?: string | null;
 }
 
-export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driverId: string; vehicleNo: string | null }) {
+export function PunchForm({
+  type,
+  driverId,
+  vehicleNo,
+  unloadTargets = [],
+}: {
+  type: EventType;
+  driverId: string;
+  vehicleNo: string | null;
+  unloadTargets?: string[];
+}) {
   const cfg = CONFIG[type];
-  // 目的別モード: detail=積込/荷卸（明細） / photo=長距離（アルコール写真のみ） / confirm=出勤・退勤・到着（確認のみ）
-  const mode: "confirm" | "photo" | "detail" = cfg.items ? "detail" : cfg.alcohol ? "photo" : "confirm";
+  // 目的別モード: unload=荷卸（対象選択＋確認項目） / detail=積込（明細） /
+  //   photo=長距離（アルコール写真のみ） / confirm=出勤・退勤・到着（確認のみ）
+  const mode: "confirm" | "photo" | "detail" | "unload" =
+    type === "unloading" ? "unload" : cfg.items ? "detail" : cfg.alcohol ? "photo" : "confirm";
 
   const [address, setAddress] = useState("");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -67,6 +79,14 @@ export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driv
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
+
+  // 荷卸専用（対象選択・確認3項目・受領書枚数・往復業務）
+  const [targets, setTargets] = useState<Set<string>>(new Set());
+  const [chkAbnormal, setChkAbnormal] = useState(false); // 荷物異常なし
+  const [chkDate, setChkDate] = useState(false); // 受領印日付OK
+  const [chkWork, setChkWork] = useState(false); // 荷下ろし作業あり
+  const [receipts, setReceipts] = useState("");
+  const [roundTrip, setRoundTrip] = useState(false);
 
   // 撮影プレビュー用オブジェクトURL（変更時に発行・破棄）
   useEffect(() => {
@@ -152,6 +172,16 @@ export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driv
         .map((it) => Object.fromEntries(Object.entries(it).filter(([, v]) => v)))
         .filter((it) => Object.keys(it).length > 0);
 
+      // 荷卸: 選択した対象＋受領書枚数を1明細に、確認項目を checks に
+      const unloadItem: Record<string, string> = {};
+      const dests = [...targets];
+      if (dests.length) unloadItem.delivery_spot = dests.join(" / ");
+      if (receipts) unloadItem.receipts = receipts;
+      const unloadChecks =
+        [chkAbnormal && "荷物異常なし", chkDate && "受領印日付OK", chkWork && "荷下ろし作業あり", roundTrip && "往復業務"]
+          .filter(Boolean)
+          .join(" / ") || undefined;
+
       const body = {
         idempotency_key: idempotencyKey,
         event_type: type,
@@ -162,8 +192,18 @@ export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driv
         lng: coords?.lng,
         // 長距離（写真モード）は撮影＝アルコールチェック実施とみなす
         alcohol_checked: cfg.alcohol ? true : undefined,
-        note: mode === "detail" ? note || undefined : undefined,
-        items: mode === "detail" && cleanItems.length ? cleanItems : undefined,
+        checks: mode === "unload" ? unloadChecks : undefined,
+        note: mode === "detail" || mode === "unload" ? note || undefined : undefined,
+        items:
+          mode === "detail"
+            ? cleanItems.length
+              ? cleanItems
+              : undefined
+            : mode === "unload"
+              ? Object.keys(unloadItem).length
+                ? [unloadItem]
+                : undefined
+              : undefined,
         photo_paths: photoPaths.length ? photoPaths : undefined,
       };
 
@@ -203,6 +243,8 @@ export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driv
   }
 
   const geoText = geoState === "ok" ? "✓ 取得済み" : geoState === "error" ? "取得できません" : "取得中...";
+  const now = new Date();
+  const md = `${now.getMonth() + 1}/${now.getDate()}`;
 
   return (
     <main className="mx-auto max-w-md p-4">
@@ -415,6 +457,96 @@ export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driv
           <button onClick={submit} disabled={submitting} className="rounded-xl bg-slate-900 px-4 py-4 text-lg font-bold text-white disabled:opacity-50">
             {submitting ? "送信中..." : `${cfg.label} を記録`}
           </button>
+        </div>
+      )}
+
+      {/* ── 荷卸完了（現行GAS f-niroshi の再現）── */}
+      {mode === "unload" && (
+        <div className="flex flex-col gap-4">
+          {/* 日付＋往復業務 */}
+          <div className="flex items-center justify-center gap-3">
+            <span className="text-4xl font-black text-red-600">{md}</span>
+            <button
+              type="button"
+              onClick={() => setRoundTrip((v) => !v)}
+              className={`rounded-lg border-2 px-3 py-1 text-sm font-bold ${roundTrip ? "border-blue-600 bg-blue-600 text-white" : "border-blue-400 text-blue-600"}`}
+            >
+              往復業務
+            </button>
+          </div>
+
+          {/* 荷卸し対象を選択（直近の積込から） */}
+          <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-3">
+            <p className="mb-2 text-sm font-bold text-slate-700">▼ 荷卸し対象を選択(複数可)</p>
+            {unloadTargets.length === 0 ? (
+              <p className="text-sm text-slate-400">直近の積込情報が見つかりません</p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {unloadTargets.map((t) => (
+                  <label key={t} className="flex items-center gap-3 py-1">
+                    <input
+                      type="checkbox"
+                      checked={targets.has(t)}
+                      onChange={(e) =>
+                        setTargets((prev) => {
+                          const n = new Set(prev);
+                          if (e.target.checked) n.add(t);
+                          else n.delete(t);
+                          return n;
+                        })
+                      }
+                      className="h-6 w-6"
+                    />
+                    <span className="text-lg font-bold text-slate-800">{t}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <hr className="border-slate-200" />
+
+          {/* 確認3項目 */}
+          <div className="flex flex-col gap-3 px-1">
+            <label className="flex items-center gap-3 text-lg font-bold text-slate-800">
+              <input type="checkbox" checked={chkAbnormal} onChange={(e) => setChkAbnormal(e.target.checked)} className="h-6 w-6" />
+              荷物異常なし
+            </label>
+            <label className="flex items-center gap-3 text-lg font-bold text-slate-800">
+              <input type="checkbox" checked={chkDate} onChange={(e) => setChkDate(e.target.checked)} className="h-6 w-6" />
+              受領印日付OK
+            </label>
+            <label className="flex items-center gap-3 text-lg font-bold text-slate-800">
+              <input type="checkbox" checked={chkWork} onChange={(e) => setChkWork(e.target.checked)} className="h-6 w-6" />
+              荷下ろし作業あり
+            </label>
+          </div>
+
+          <input
+            placeholder="受領書枚数"
+            inputMode="numeric"
+            value={receipts}
+            onChange={(e) => setReceipts(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2.5"
+          />
+          <textarea
+            placeholder="荷卸時の備考（任意）"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={3}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2"
+          />
+
+          {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
+
+          <button
+            onClick={submit}
+            disabled={submitting}
+            className="rounded-2xl bg-violet-700 px-4 py-4 text-xl font-bold text-white active:scale-[0.99] disabled:opacity-50"
+          >
+            {submitting ? "送信中..." : "この内容で送信"}
+          </button>
+          <Link href="/driver" className="text-center text-blue-600">戻る</Link>
         </div>
       )}
     </main>
