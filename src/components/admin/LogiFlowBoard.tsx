@@ -40,6 +40,7 @@ export function LogiFlowBoard({
   const [drag, setDrag] = useState<{ id: string; driverKey: string; col: ColKind } | null>(null);
   const [modal, setModal] = useState<LFJob | null>(null);
   const [live, setLive] = useState(false);
+  const [editing, setEditing] = useState(false);
   const tomorrow = addDayStr(date, 1);
 
   // 即時反映（Realtime＋ポーリング）
@@ -82,9 +83,9 @@ export function LogiFlowBoard({
   const addJob = (driverName: string) =>
     api("/api/admin/dispatch-plans", "POST", { driver_name_raw: driverName, plan_date: date, arrival_date: date });
 
-  // ドロップ: 別列(flow↔next)なら着荷日を変更、同列なら並び替え
+  // ドロップ: 別列(flow↔next)なら着荷日を変更、同列なら並び替え。編集モード時のみ。
   function onDropTo(driver: LFDriver, col: ColKind, beforeId: string | null) {
-    if (!drag || drag.driverKey !== driver.key) {
+    if (!editing || !drag || drag.driverKey !== driver.key) {
       setDrag(null);
       return;
     }
@@ -125,10 +126,23 @@ export function LogiFlowBoard({
           <span className={`h-2 w-2 rounded-full ${live ? "bg-green-500" : "bg-slate-300"}`} /> 自動反映
         </span>
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setEditing((v) => !v)}
+            className={`rounded-lg px-4 py-2 text-sm font-black shadow transition ${
+              editing ? "bg-green-600 text-white" : "border-2 border-orange-500 bg-white text-orange-600"
+            }`}
+          >
+            {editing ? "✅ 編集を終了" : "✏️ 編集"}
+          </button>
           <Link href="/admin" className="text-sm text-blue-600">← 管理</Link>
           <button onClick={() => window.print()} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white">🖨️ A4印刷</button>
         </div>
       </div>
+      {editing && (
+        <p className="mb-2 rounded-lg border-2 border-green-500 bg-green-50 p-2 text-sm font-bold text-green-800 no-print">
+          ✏️ 編集モード：案件を<strong>左右にドラッグ</strong>で並び替え／「翌日」列へドラッグで翌日送り／セルはその場で編集・タップで詳細・×で削除
+        </p>
+      )}
       {err && <p className="mb-2 rounded bg-red-50 p-2 text-sm text-red-600 no-print">{err}</p>}
 
       <div className="overflow-x-auto rounded-lg border-2 border-black bg-white">
@@ -150,21 +164,25 @@ export function LogiFlowBoard({
                 <span className="text-[8px] text-slate-400">{d.belong}</span>
                 <span className="text-sm font-bold leading-tight">{d.name}</span>
                 <span className="mt-1 inline-block border border-black px-1 text-[10px] font-bold">{d.vehicle ?? "--"}</span>
-                <button onClick={() => addJob(d.name)} disabled={busy} className="mt-1 rounded border border-black px-1.5 text-[8px] font-bold no-print">＋案件</button>
+                {editing && (
+                  <button onClick={() => addJob(d.name)} disabled={busy} className="mt-1 rounded border border-black px-1.5 text-[8px] font-bold no-print">＋案件</button>
+                )}
               </div>
               {/* AM */}
-              <Column driver={d} col="am" jobs={d.amJobs} date={date} drag={drag} setDrag={setDrag} onDropTo={onDropTo} patch={patch} del={del} openModal={setModal} placeholder="昭栄車庫" dashed />
+              <Column driver={d} col="am" jobs={d.amJobs} date={date} editing={editing} drag={drag} setDrag={setDrag} onDropTo={onDropTo} patch={patch} del={del} openModal={setModal} placeholder="昭栄車庫" dashed />
               {/* 当日フロー */}
-              <Column driver={d} col="flow" jobs={d.jobs} date={date} drag={drag} setDrag={setDrag} onDropTo={onDropTo} patch={patch} del={del} openModal={setModal} placeholder="—" grow />
+              <Column driver={d} col="flow" jobs={d.jobs} date={date} editing={editing} drag={drag} setDrag={setDrag} onDropTo={onDropTo} patch={patch} del={del} openModal={setModal} placeholder="—" grow />
               {/* 翌日 */}
-              <Column driver={d} col="next" jobs={d.nextDayJobs} date={date} drag={drag} setDrag={setDrag} onDropTo={onDropTo} patch={patch} del={del} openModal={setModal} placeholder="翌日なし" nextBg dashed />
+              <Column driver={d} col="next" jobs={d.nextDayJobs} date={date} editing={editing} drag={drag} setDrag={setDrag} onDropTo={onDropTo} patch={patch} del={del} openModal={setModal} placeholder="翌日なし" nextBg dashed />
             </div>
           ))
         )}
       </div>
 
       <p className="mt-2 text-xs text-slate-400 no-print">
-        案件をドラッグで並び替え／「翌日」列へドラッグで翌日送り（着荷日変更）。積地・着地・到着時間・高速はその場で編集。タップで詳細。
+        {editing
+          ? "案件を左右にドラッグで並び替え／「翌日」列へドラッグで翌日送り（着荷日変更）。積地・着地・到着時間・高速はその場で編集。タップで詳細。"
+          : "閲覧モード。編集するには右上の「✏️ 編集」を押してください。"}
       </p>
 
       {modal && (
@@ -175,9 +193,9 @@ export function LogiFlowBoard({
 }
 
 function Column({
-  driver, col, jobs, date, drag, setDrag, onDropTo, patch, del, openModal, placeholder, grow, dashed, nextBg,
+  driver, col, jobs, date, editing, drag, setDrag, onDropTo, patch, del, openModal, placeholder, grow, dashed, nextBg,
 }: {
-  driver: LFDriver; col: ColKind; jobs: LFJob[]; date: string;
+  driver: LFDriver; col: ColKind; jobs: LFJob[]; date: string; editing: boolean;
   drag: { id: string; driverKey: string; col: ColKind } | null;
   setDrag: (v: { id: string; driverKey: string; col: ColKind } | null) => void;
   onDropTo: (d: LFDriver, col: ColKind, beforeId: string | null) => void;
@@ -185,7 +203,7 @@ function Column({
   del: (id: string) => void; openModal: (j: LFJob) => void;
   placeholder: string; grow?: boolean; dashed?: boolean; nextBg?: boolean;
 }) {
-  const active = drag && drag.driverKey === driver.key;
+  const active = editing && drag && drag.driverKey === driver.key;
   return (
     <div
       className={`flex items-center gap-1 overflow-x-auto border-r border-black p-1 ${grow ? "" : ""} ${nextBg ? "bg-slate-100" : ""} ${active ? "outline-dashed outline-2 outline-blue-400" : ""}`}
@@ -196,7 +214,7 @@ function Column({
         <div className={`flex h-[92px] w-[150px] flex-col items-center justify-center rounded border-2 ${dashed ? "border-dashed" : "border-solid"} border-slate-300 text-[10px] font-bold text-slate-400`}>{placeholder}</div>
       ) : (
         jobs.map((j) => (
-          <JobBox key={j.id} job={j} driverVehicle={driver.vehicle} col={col}
+          <JobBox key={j.id} job={j} driverVehicle={driver.vehicle} col={col} editing={editing}
             onDragStart={() => setDrag({ id: j.id, driverKey: driver.key, col })}
             onDropBefore={() => onDropTo(driver, col, j.id)}
             patch={patch} del={del} openModal={openModal} />
@@ -207,40 +225,44 @@ function Column({
 }
 
 function JobBox({
-  job, driverVehicle, col, onDragStart, onDropBefore, patch, del, openModal,
+  job, driverVehicle, col, editing, onDragStart, onDropBefore, patch, del, openModal,
 }: {
-  job: LFJob; driverVehicle: string | null; col: ColKind;
+  job: LFJob; driverVehicle: string | null; col: ColKind; editing: boolean;
   onDragStart: () => void; onDropBefore: () => void;
   patch: (id: string, field: string, value: string) => void; del: (id: string) => void; openModal: (j: LFJob) => void;
 }) {
   const diff = (job.vehicleNo ?? "").trim() !== "" && (job.vehicleNo ?? "").trim() !== (driverVehicle ?? "").trim();
   const w = col === "am" ? "w-[115px]" : col === "next" ? "w-[150px]" : "w-[180px]";
   const dt = mdw(job.arrivalDate);
+  const ro = !editing;
+  const focusCls = editing ? "focus:bg-yellow-50 focus:outline focus:outline-1" : "";
   return (
     <div
-      draggable
-      onDragStart={onDragStart}
+      draggable={editing}
+      onDragStart={editing ? onDragStart : undefined}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.stopPropagation(); e.preventDefault(); onDropBefore(); }}
-      className={`relative flex h-[92px] ${w} shrink-0 cursor-grab flex-col justify-between rounded border ${diff ? "border-[2.5px] border-black bg-slate-100" : "border-black bg-white"} p-1`}
+      className={`relative flex h-[92px] ${w} shrink-0 flex-col justify-between rounded border ${diff ? "border-[2.5px] border-black bg-slate-100" : "border-black bg-white"} p-1 ${editing ? "cursor-grab" : "cursor-default"}`}
     >
-      <span onClick={() => del(job.id)} className="absolute right-0.5 top-0 cursor-pointer text-xs text-slate-300 hover:text-red-500 no-print">×</span>
-      <div className="flex items-center justify-between text-[7px]" onClick={() => openModal(job)}>
+      {editing && (
+        <span onClick={() => del(job.id)} className="absolute right-0.5 top-0 cursor-pointer text-xs text-slate-300 hover:text-red-500 no-print">×</span>
+      )}
+      <div className={`flex items-center justify-between text-[7px] ${editing ? "cursor-pointer" : ""}`} onClick={() => editing && openModal(job)}>
         <span className={`font-bold ${dt.cls}`}>{dt.text}</span>
         {diff && <span className="text-red-600">!車:{job.vehicleNo}</span>}
       </div>
       <div className="flex flex-1 items-start justify-between gap-0.5">
-        <textarea defaultValue={job.originSpot ?? ""} onBlur={(e) => patch(job.id, "origin_spot", e.target.value)}
-          className="h-8 w-[46%] resize-none break-all border-none bg-transparent p-0 text-[9px] font-bold leading-tight focus:bg-yellow-50 focus:outline focus:outline-1" />
+        <textarea defaultValue={job.originSpot ?? ""} readOnly={ro} onBlur={ro ? undefined : (e) => patch(job.id, "origin_spot", e.target.value)}
+          className={`h-8 w-[46%] resize-none break-all border-none bg-transparent p-0 text-[9px] font-bold leading-tight ${focusCls}`} />
         <span className="mt-1 text-[7px] font-bold">→</span>
-        <textarea defaultValue={job.destSpot ?? ""} onBlur={(e) => patch(job.id, "delivery_spot", e.target.value)}
-          className="h-8 w-[46%] resize-none break-all border-none bg-transparent p-0 text-[9px] font-bold leading-tight focus:bg-yellow-50 focus:outline focus:outline-1" />
+        <textarea defaultValue={job.destSpot ?? ""} readOnly={ro} onBlur={ro ? undefined : (e) => patch(job.id, "delivery_spot", e.target.value)}
+          className={`h-8 w-[46%] resize-none break-all border-none bg-transparent p-0 text-[9px] font-bold leading-tight ${focusCls}`} />
       </div>
       <div>
-        <input defaultValue={job.arrivalTime ?? ""} placeholder="到着指定" onBlur={(e) => patch(job.id, "arrival_time", e.target.value)}
-          className="w-full border-none border-t border-black bg-blue-50 p-0 text-center text-[8px] font-bold focus:outline focus:outline-1" />
-        <input defaultValue={job.express ?? ""} placeholder="高速指示" onBlur={(e) => patch(job.id, "highway_instruction", e.target.value)}
-          className="w-full border-none border-t border-black bg-yellow-50 p-0 text-center text-[8px] font-bold focus:outline focus:outline-1" />
+        <input defaultValue={job.arrivalTime ?? ""} readOnly={ro} placeholder="到着指定" onBlur={ro ? undefined : (e) => patch(job.id, "arrival_time", e.target.value)}
+          className={`w-full border-none border-t border-black bg-blue-50 p-0 text-center text-[8px] font-bold ${focusCls}`} />
+        <input defaultValue={job.express ?? ""} readOnly={ro} placeholder="高速指示" onBlur={ro ? undefined : (e) => patch(job.id, "highway_instruction", e.target.value)}
+          className={`w-full border-none border-t border-black bg-yellow-50 p-0 text-center text-[8px] font-bold ${focusCls}`} />
       </div>
     </div>
   );
