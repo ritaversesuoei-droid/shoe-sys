@@ -15,6 +15,10 @@ const patchSchema = z.object({
   plan_date: z.string().nullish(),
   arrival_date: z.string().nullish(),
   sort_no: z.number().int().nullish(),
+  // 配車表の編集で使う列
+  note: z.string().nullish(),
+  is_subcontract: z.boolean().nullish(),
+  driver_name_raw: z.string().nullish(),
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
