@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 /** 管理画面 共通ナビ（アイコン＋色・大きめタップ領域）。ログイン画面では非表示。 */
 const ITEMS: { href: string; icon: string; label: string; color: string }[] = [
   { href: "/admin", icon: "🏠", label: "ホーム", color: "bg-slate-100 text-slate-700" },
+  { href: "/admin/tim", icon: "📡", label: "T・I・M", color: "bg-yellow-100 text-yellow-800" },
   { href: "/admin/attendance", icon: "⏱️", label: "勤怠修正", color: "bg-amber-100 text-amber-800" },
   { href: "/admin/dispatch", icon: "🚚", label: "配車表", color: "bg-sky-100 text-sky-800" },
   { href: "/admin/reports", icon: "📄", label: "日報", color: "bg-emerald-100 text-emerald-800" },
