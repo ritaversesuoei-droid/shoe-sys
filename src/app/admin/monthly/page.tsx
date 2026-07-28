@@ -6,6 +6,7 @@ import { getMonthlySummary } from "@/lib/operations/monthly-summary";
 import { holidaysOfYear, type DayClass } from "@/lib/holidays";
 import { to_month_key } from "@/lib/datekey";
 import HolidayManager from "@/components/admin/HolidayManager";
+import { BreakReview, type BreakRow } from "@/components/admin/BreakReview";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,25 @@ export default async function MonthlyPage({
 
   const supabase = await createClient();
   const summary = await getMonthlySummary(supabase, monthKey);
+
+  // 休憩の要確認（自社のみ・不足/過多）をトータルから一覧化
+  const breakRows: BreakRow[] = summary
+    .filter((s) => s.manageAttendance)
+    .flatMap((s) =>
+      s.byDay
+        .filter((d) => d.restFlag)
+        .map((d) => ({
+          shiftId: d.shiftId,
+          workDate: d.workDate,
+          driverName: s.driverName,
+          driverCode: s.driverCode,
+          laborMin: d.laborMin,
+          restMin: d.restMin,
+          requiredRestMin: d.requiredRestMin,
+          restFlag: d.restFlag as "short" | "over",
+        })),
+    )
+    .sort((a, b) => a.workDate.localeCompare(b.workDate) || a.driverName.localeCompare(b.driverName));
 
   // 休日設定（当月の祝日＋手修正）
   const mm = monthKey.slice(4, 6);
@@ -76,6 +96,7 @@ export default async function MonthlyPage({
                 <th className="p-3 text-right">出勤</th>
                 <th className="p-3 text-right">拘束</th>
                 <th className="p-3 text-right">労働</th>
+                <th className="p-3 text-right">休憩</th>
                 <th className="p-3 text-right">残業</th>
                 <th className="p-3 text-right">休日</th>
                 <th className="p-3 text-right">深夜</th>
@@ -97,6 +118,20 @@ export default async function MonthlyPage({
                   <td className="p-3 text-right">{s.workDays}日</td>
                   <td className="p-3 text-right font-mono">{hm(s.restraintMin)}</td>
                   <td className="p-3 text-right font-mono">{hm(s.laborMin)}</td>
+                  <td className="p-3 text-right font-mono">
+                    {partner ? (
+                      "—"
+                    ) : (
+                      <>
+                        {hm(s.restMin)}
+                        {s.restIssueCount > 0 && (
+                          <span className="ml-1 inline-block rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                            要確認{s.restIssueCount}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </td>
                   <td className="p-3 text-right font-mono">{partner ? "—" : hm(s.overtimeMin)}</td>
                   <td className="p-3 text-right font-mono">{partner ? "—" : hm(s.holidayWorkMin)}</td>
                   <td className="p-3 text-right font-mono">{hm(s.nightMin)}</td>
@@ -118,6 +153,14 @@ export default async function MonthlyPage({
         残業=労働−所定(8h)の累計、休日労働=休日(土日・祝日・手修正)の労働。時刻は H:MM。
         <br />協力店社（🏢自社以外）は勤怠集計・労働チェックの対象外です（打刻履歴のみ・残業/休日/違反は算定しません）。
       </p>
+
+      <section className="mt-8">
+        <h2 className="mb-1 text-lg font-bold">🍵 休憩の要確認（不足・過多）</h2>
+        <p className="mb-2 text-sm text-slate-500">
+          当月で休憩が不足／過多の勤務です。休憩(分)をその場で直すと、拘束・労働・違反が再計算されます。
+        </p>
+        <BreakReview rows={breakRows} />
+      </section>
 
       <HolidayManager month={monthKey} holidays={monthHolidays} initialOverrides={overrides} />
     </main>

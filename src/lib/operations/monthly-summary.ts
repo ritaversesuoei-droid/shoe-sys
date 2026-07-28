@@ -6,11 +6,19 @@ type SB = SupabaseClient<Database>;
 
 // 1日の所定労働時間（残業算定の基準）の既定値。app_settings('payroll').regular_daily_min で上書き。
 const DEFAULT_REGULAR_DAILY_MIN = 480; // 8h
+// 休憩が長すぎる（要確認）とみなす閾値。4時間超の勤務中休憩は過多として拾う。
+const REST_OVER_MIN = 240;
+
+export type RestFlag = "short" | "over" | null;
 
 export interface MonthlyDay {
+  shiftId: string;
   workDate: string;
   restraintMin: number;
   laborMin: number;
+  restMin: number;          // 休憩（勤務中）
+  requiredRestMin: number;  // 労基法34条の必要休憩（労働に応じ 0/45/60）
+  restFlag: RestFlag;       // short=不足 / over=過多 / null=適正
   nightMin: number;
   isWeekend: boolean;
   isHoliday: boolean;     // 休日区分（土日/祝日/手修正）
@@ -25,6 +33,8 @@ export interface DriverMonthlySummary {
   workDays: number;
   restraintMin: number;
   laborMin: number;
+  restMin: number;          // 休憩合計
+  restIssueCount: number;   // 休憩の要確認（不足＋過多）日数
   nightMin: number;
   overtimeMin: number;
   holidayWorkMin: number;
@@ -35,6 +45,25 @@ export interface DriverMonthlySummary {
 function isWeekend(workDate: string): boolean {
   const d = new Date(`${workDate}T00:00:00Z`).getUTCDay();
   return d === 0 || d === 6;
+}
+
+/** "HH:MM:SS" interval → 分。 */
+function intervalToMin(v: string | null): number {
+  if (!v) return 0;
+  const m = /^(\d+):(\d{2})/.exec(v);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
+}
+
+/** 労基法34条: 労働6h超→45分、8h超→60分の休憩が必要。 */
+function requiredRest(laborMin: number): number {
+  if (laborMin > 480) return 60;
+  if (laborMin > 360) return 45;
+  return 0;
+}
+function restFlagOf(restMin: number, requiredRestMin: number): RestFlag {
+  if (requiredRestMin > 0 && restMin < requiredRestMin) return "short";
+  if (restMin > REST_OVER_MIN) return "over";
+  return null;
 }
 
 /** app_settings から 所定労働時間 と 休日区分の手修正(overrides) を読む。 */
@@ -68,7 +97,7 @@ export async function getMonthlySummary(
 
   let q = sb
     .from("shifts")
-    .select("driver_id, work_date, restraint_min, labor_min, night_min, drivers(code, name, manage_attendance)")
+    .select("id, driver_id, work_date, restraint_min, labor_min, night_min, rest_time, drivers(code, name, manage_attendance)")
     .eq("month_key", monthKey)
     .not("clock_out_at", "is", null)
     .order("work_date", { ascending: true });
@@ -99,6 +128,8 @@ export async function getMonthlySummary(
         workDays: 0,
         restraintMin: 0,
         laborMin: 0,
+        restMin: 0,
+        restIssueCount: 0,
         nightMin: 0,
         overtimeMin: 0,
         holidayWorkMin: 0,
@@ -110,17 +141,26 @@ export async function getMonthlySummary(
     const restraint = s.restraint_min ?? 0;
     const labor = s.labor_min ?? 0;
     const night = s.night_min ?? 0;
+    const rest = intervalToMin(s.rest_time);
+    const requiredRestMin = requiredRest(labor);
+    const restFlag = restFlagOf(rest, requiredRestMin);
     const weekend = isWeekend(s.work_date);
     const holiday = classifyDay(s.work_date, overrides) === "holiday";
     cur.restraintMin += restraint;
     cur.laborMin += labor;
+    cur.restMin += rest;
     cur.nightMin += night;
+    if (restFlag) cur.restIssueCount += 1;
     cur.overtimeMin += Math.max(0, labor - regularDailyMin);
     if (holiday) cur.holidayWorkMin += labor;
     cur.byDay.push({
+      shiftId: s.id,
       workDate: s.work_date,
       restraintMin: restraint,
       laborMin: labor,
+      restMin: rest,
+      requiredRestMin,
+      restFlag,
       nightMin: night,
       isWeekend: weekend,
       isHoliday: holiday,
