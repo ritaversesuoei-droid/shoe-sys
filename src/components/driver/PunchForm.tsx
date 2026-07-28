@@ -25,6 +25,13 @@ const CONFIG: Record<EventType, { label: string; items: "load" | "unload" | null
   clock_out: { label: "退勤報告", items: null, alcohol: false },
 };
 
+// 確認モードの短縮名・アイコン・案内文
+const CONFIRM_META: Partial<Record<EventType, { short: string; icon: string; msg: string }>> = {
+  departure: { short: "出勤", icon: "☀️", msg: "管理者に「出勤」を報告します" },
+  clock_out: { short: "退勤", icon: "🌙", msg: "管理者に「退勤」を報告します" },
+  arrival: { short: "到着", icon: "📍", msg: "現在地とともに「到着」を報告します" },
+};
+
 interface Item {
   shipper?: string;
   delivery_spot?: string;
@@ -43,63 +50,30 @@ interface Plan {
 
 export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driverId: string; vehicleNo: string | null }) {
   const cfg = CONFIG[type];
+  // 目的別モード: detail=積込/荷卸（明細） / photo=長距離（アルコール写真のみ） / confirm=出勤・退勤・到着（確認のみ）
+  const mode: "confirm" | "photo" | "detail" = cfg.items ? "detail" : cfg.alcohol ? "photo" : "confirm";
+
   const [address, setAddress] = useState("");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geoState, setGeoState] = useState<"idle" | "ok" | "error">("idle");
-  const [alcohol, setAlcohol] = useState(false);
   const [note, setNote] = useState("");
   const [items, setItems] = useState<Item[]>(cfg.items ? [{}] : []);
   const [photos, setPhotos] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const [plans, setPlans] = useState<Plan[] | null>(null);
+  const [plansOpen, setPlansOpen] = useState(false);
+  const [plansLoading, setPlansLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
 
-  // 撮影ごとのプレビュー用オブジェクトURL（変更時に発行・破棄してリークを防ぐ）
+  // 撮影プレビュー用オブジェクトURL（変更時に発行・破棄）
   useEffect(() => {
     const urls = photos.map((p) => URL.createObjectURL(p));
     setPreviews(urls);
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
   }, [photos]);
-
-  function addPhoto(list: FileList | null) {
-    const f = list?.[0];
-    if (!f) return;
-    setPhotos((prev) => (prev.length >= 3 ? prev : [...prev, f]));
-  }
-
-  // 今日の予定業務（現行GAS: loadTodayPlans / applyPlan の再現）
-  const [plans, setPlans] = useState<Plan[] | null>(null);
-  const [plansOpen, setPlansOpen] = useState(false);
-  const [plansLoading, setPlansLoading] = useState(false);
-
-  async function loadPlans() {
-    setPlansOpen((v) => !v);
-    if (plans) return;
-    setPlansLoading(true);
-    try {
-      const res = await fetch("/api/dispatch-plans/today");
-      const data = await res.json();
-      if (data.success) setPlans(data.plans as Plan[]);
-    } catch {
-      /* 予定取得失敗は打刻を妨げない */
-    } finally {
-      setPlansLoading(false);
-    }
-  }
-
-  /** 予定をタップ→空いている最初の明細に荷主・着荷地を転記（applyPlan 準拠）。 */
-  function applyPlan(p: Plan) {
-    setItems((prev) => {
-      const idx = prev.findIndex((it) => !it.shipper && !it.delivery_spot);
-      const t = idx >= 0 ? idx : 0;
-      return prev.map((it, i) =>
-        i === t ? { ...it, shipper: p.shipper ?? it.shipper, delivery_spot: p.delivery_spot ?? it.delivery_spot } : it,
-      );
-    });
-    setPlansOpen(false);
-  }
 
   // 位置情報の取得（車番はドライバー割当で確定・入力不要）
   useEffect(() => {
@@ -115,17 +89,46 @@ export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driv
     }
   }, []);
 
+  function addPhoto(list: FileList | null) {
+    const f = list?.[0];
+    if (!f) return;
+    setPhotos((prev) => (prev.length >= 3 ? prev : [...prev, f]));
+  }
   function updateItem(i: number, patch: Item) {
     setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+  }
+
+  // 今日の予定業務（現行GAS: loadTodayPlans / applyPlan の再現）
+  async function loadPlans() {
+    setPlansOpen((v) => !v);
+    if (plans) return;
+    setPlansLoading(true);
+    try {
+      const res = await fetch("/api/dispatch-plans/today");
+      const data = await res.json();
+      if (data.success) setPlans(data.plans as Plan[]);
+    } catch {
+      /* 予定取得失敗は打刻を妨げない */
+    } finally {
+      setPlansLoading(false);
+    }
+  }
+  function applyPlan(p: Plan) {
+    setItems((prev) => {
+      const idx = prev.findIndex((it) => !it.shipper && !it.delivery_spot);
+      const t = idx >= 0 ? idx : 0;
+      return prev.map((it, i) =>
+        i === t ? { ...it, shipper: p.shipper ?? it.shipper, delivery_spot: p.delivery_spot ?? it.delivery_spot } : it,
+      );
+    });
+    setPlansOpen(false);
   }
 
   async function submit() {
     setSubmitting(true);
     setError(null);
     try {
-      if (cfg.alcohol && !alcohol) throw new Error("アルコールチェックの確認が必要です");
-      // 長距離休憩・長距離再出発は確定表どおり「カメラでアルコールチェック撮影」を必須にする
-      if (cfg.alcohol && photos.length === 0) throw new Error("アルコールチェックの写真を撮影してください");
+      if (mode === "photo" && photos.length === 0) throw new Error("写真を撮影してください");
 
       const idempotencyKey = crypto.randomUUID();
 
@@ -154,12 +157,13 @@ export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driv
         event_type: type,
         occurred_at: new Date().toISOString(),
         vehicle_no: vehicleNo || undefined,
-        address: address || undefined,
+        address: mode === "detail" ? address || undefined : undefined,
         lat: coords?.lat,
         lng: coords?.lng,
-        alcohol_checked: cfg.alcohol ? alcohol : undefined,
-        note: note || undefined,
-        items: cleanItems.length ? cleanItems : undefined,
+        // 長距離（写真モード）は撮影＝アルコールチェック実施とみなす
+        alcohol_checked: cfg.alcohol ? true : undefined,
+        note: mode === "detail" ? note || undefined : undefined,
+        items: mode === "detail" && cleanItems.length ? cleanItems : undefined,
         photo_paths: photoPaths.length ? photoPaths : undefined,
       };
 
@@ -184,7 +188,7 @@ export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driv
       <main className="mx-auto max-w-md p-4">
         <div className="rounded-xl border border-green-300 bg-green-50 p-6 text-center">
           <div className="text-2xl">✓</div>
-          <h1 className="mt-2 text-lg font-bold">{cfg.label} を記録しました</h1>
+          <h1 className="mt-2 text-lg font-bold">{cfg.label} を送信しました</h1>
           {judgement?.hasViolation && (
             <p className="mt-3 rounded bg-red-100 p-2 text-sm text-red-700">
               改善基準告示の警告: {(judgement.alertTypes ?? []).join(", ")}
@@ -198,46 +202,117 @@ export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driv
     );
   }
 
+  const geoText = geoState === "ok" ? "✓ 取得済み" : geoState === "error" ? "取得できません" : "取得中...";
+
   return (
     <main className="mx-auto max-w-md p-4">
       <header className="mb-4 flex items-center gap-2">
         <Link href="/driver" className="text-slate-400">←</Link>
         <h1 className="text-xl font-bold">{cfg.label}</h1>
-        {/* 車番は割当で確定。入力せず小さく表示するだけ */}
-        <span className="ml-auto rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">
-          車番 {vehicleNo || "未設定"}
-        </span>
+        <span className="ml-auto rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">車番 {vehicleNo || "未設定"}</span>
       </header>
 
-      <div className="flex flex-col gap-4">
-        <label className="block">
-          <span className="text-sm text-slate-600">場所（任意）</span>
+      {/* ── 確認のみ（出勤・退勤・到着）── */}
+      {mode === "confirm" && (
+        <div className="flex flex-col gap-5 pt-2">
+          <div className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-6 text-center">
+            <div className="text-5xl">{CONFIRM_META[type]?.icon}</div>
+            <p className="mt-3 text-lg font-bold text-slate-800">{CONFIRM_META[type]?.msg}</p>
+            <p className="mt-2 text-sm text-slate-500">位置情報: {geoText}{geoState === "error" && "（送信は可能）"}</p>
+          </div>
+          {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
+          <button onClick={submit} disabled={submitting} className="rounded-2xl bg-slate-900 px-4 py-5 text-xl font-bold text-white active:scale-[0.99] disabled:opacity-50">
+            {submitting ? "送信中..." : `${CONFIRM_META[type]?.short}を送信`}
+          </button>
+          <Link href="/driver" className="text-center text-sm text-slate-500">やめる</Link>
+        </div>
+      )}
+
+      {/* ── アルコール写真のみ（長距離再出発・長距離休憩）── */}
+      {mode === "photo" && (
+        <div className="flex flex-col gap-5 pt-2">
+          <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 text-center">
+            <p className="text-lg font-bold text-amber-800">📷 アルコールチェック</p>
+            <p className="mt-1 text-sm text-amber-700">カメラで撮影して送信してください</p>
+          </div>
           <input
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="現在地の住所など"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            onChange={(e) => {
+              addPhoto(e.target.files);
+              e.target.value = "";
+            }}
           />
-        </label>
+          {previews.length === 0 ? (
+            <button
+              onClick={() => photoInputRef.current?.click()}
+              className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-amber-400 bg-amber-50 py-12 text-xl font-bold text-amber-700 active:scale-[0.99]"
+            >
+              <span className="text-5xl">📷</span>
+              カメラを起動
+            </button>
+          ) : (
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex flex-wrap justify-center gap-2">
+                {previews.map((src, i) => (
+                  <div key={i} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt={`写真${i + 1}`} className="h-36 w-36 rounded-lg border border-slate-300 object-cover" />
+                    <button
+                      onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+                      aria-label="削除"
+                      className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-slate-800 text-white"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {photos.length < 3 && (
+                <button onClick={() => photoInputRef.current?.click()} className="rounded-lg border border-amber-400 px-4 py-2 text-sm font-bold text-amber-700">
+                  📷 撮り直す・追加
+                </button>
+              )}
+            </div>
+          )}
+          {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
+          <button
+            onClick={submit}
+            disabled={submitting || photos.length === 0}
+            className="rounded-2xl bg-orange-600 px-4 py-5 text-xl font-bold text-white active:scale-[0.99] disabled:opacity-50"
+          >
+            {submitting ? "送信中..." : "この写真を送信"}
+          </button>
+        </div>
+      )}
 
-        <p className="text-xs text-slate-400">
-          位置情報: {geoState === "ok" ? "✓ 取得済み" : geoState === "error" ? "取得できません" : "取得中..."}
-        </p>
+      {/* ── 詳細（積込・荷卸）── */}
+      {mode === "detail" && (
+        <div className="flex flex-col gap-4">
+          <label className="block">
+            <span className="text-sm text-slate-600">場所（任意）</span>
+            <input
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="現在地の住所など"
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+            />
+          </label>
 
-        {cfg.items && (
+          <p className="text-xs text-slate-400">位置情報: {geoText}</p>
+
           <div className="flex flex-col gap-3">
             <span className="text-sm font-medium text-slate-700">
               {cfg.items === "load" ? "積込明細" : "荷卸明細"}（最大3件）
             </span>
 
-            {/* 今日の予定業務を確認（現行GAS再現）: タップで荷主・着荷地を転記 */}
+            {/* 今日の予定業務を確認（タップで荷主・着荷地を転記） */}
             {cfg.items === "load" && (
               <div>
-                <button
-                  type="button"
-                  onClick={loadPlans}
-                  className="w-full rounded-lg border border-blue-300 bg-blue-50 py-2 text-sm font-bold text-blue-700"
-                >
+                <button type="button" onClick={loadPlans} className="w-full rounded-lg border border-blue-300 bg-blue-50 py-2 text-sm font-bold text-blue-700">
                   📋 今日の予定業務を確認
                 </button>
                 {plansOpen && (
@@ -290,86 +365,49 @@ export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driv
               </button>
             )}
           </div>
-        )}
 
-        <div className={cfg.alcohol ? "rounded-lg border border-amber-300 bg-amber-50 p-3" : "block"}>
-          <span className={`text-sm ${cfg.alcohol ? "font-medium text-amber-800" : "text-slate-600"}`}>
-            {cfg.alcohol ? "📷 アルコールチェック写真（必須・カメラで撮影）" : "写真（荷姿 等・任意）"}
-          </span>
-
-          {/* 保存済みファイルの選択ではなく、その場でカメラを起動して撮影する */}
-          <input
-            ref={photoInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            hidden
-            onChange={(e) => {
-              addPhoto(e.target.files);
-              e.target.value = ""; // 同じ入力で続けて撮影できるようにリセット
-            }}
-          />
-
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {previews.map((src, i) => (
-              <div key={i} className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={src} alt={`写真${i + 1}`} className="h-20 w-20 rounded-lg border border-slate-300 object-cover" />
-                <button
-                  type="button"
-                  onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
-                  aria-label={`写真${i + 1}を削除`}
-                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-sm text-white"
-                >
-                  ×
+          <div className="block">
+            <span className="text-sm text-slate-600">写真（荷姿 等・任意）</span>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              onChange={(e) => {
+                addPhoto(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {previews.map((src, i) => (
+                <div key={i} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt={`写真${i + 1}`} className="h-20 w-20 rounded-lg border border-slate-300 object-cover" />
+                  <button onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))} aria-label="削除" className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-sm text-white">×</button>
+                </div>
+              ))}
+              {photos.length < 3 && (
+                <button type="button" onClick={() => photoInputRef.current?.click()} className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-slate-300 text-xs font-medium text-slate-500">
+                  <span className="text-2xl leading-none">📷</span>
+                  {photos.length === 0 ? "カメラ" : "追加"}
                 </button>
-              </div>
-            ))}
-            {photos.length < 3 && (
-              <button
-                type="button"
-                onClick={() => photoInputRef.current?.click()}
-                className={`flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed text-xs font-medium ${
-                  cfg.alcohol ? "border-amber-400 bg-white/60 text-amber-700" : "border-slate-300 text-slate-500"
-                }`}
-              >
-                <span className="text-2xl leading-none">📷</span>
-                {photos.length === 0 ? "カメラを起動" : "追加"}
-              </button>
-            )}
+              )}
+            </div>
           </div>
 
-          <p className={`mt-1.5 text-xs ${cfg.alcohol && photos.length === 0 ? "text-amber-700" : "text-slate-400"}`}>
-            {photos.length > 0
-              ? `${photos.length}枚 撮影（最大3枚・自動圧縮）`
-              : cfg.alcohol
-                ? "アルコールチェッカーの結果をカメラで撮影してください"
-                : "「カメラを起動」でその場で撮影します（最大3枚）"}
-          </p>
-        </div>
-
-        {cfg.alcohol && (
-          <label className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3">
-            <input type="checkbox" checked={alcohol} onChange={(e) => setAlcohol(e.target.checked)} className="h-5 w-5" />
-            <span className="text-sm font-medium text-amber-800">アルコールチェックを実施しました（必須）</span>
+          <label className="block">
+            <span className="text-sm text-slate-600">特記（任意）</span>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
           </label>
-        )}
 
-        <label className="block">
-          <span className="text-sm text-slate-600">特記（任意）</span>
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
-        </label>
+          {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
 
-        {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
-
-        <button
-          onClick={submit}
-          disabled={submitting}
-          className="rounded-xl bg-slate-900 px-4 py-4 text-lg font-bold text-white disabled:opacity-50"
-        >
-          {submitting ? "送信中..." : `${cfg.label} を記録`}
-        </button>
-      </div>
+          <button onClick={submit} disabled={submitting} className="rounded-xl bg-slate-900 px-4 py-4 text-lg font-bold text-white disabled:opacity-50">
+            {submitting ? "送信中..." : `${cfg.label} を記録`}
+          </button>
+        </div>
+      )}
     </main>
   );
 }
