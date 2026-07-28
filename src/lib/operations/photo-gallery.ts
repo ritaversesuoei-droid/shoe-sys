@@ -26,19 +26,27 @@ function jstParts(iso: string): { day: string; hhmm: string } {
     hhmm: `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`,
   };
 }
+function addDay(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export interface PhotoGalleryFilter {
+  from: string; // yyyy-MM-dd（JST・以上）
+  to: string; // yyyy-MM-dd（JST・以下＝当日いっぱい）
+  driverId?: string;
+  eventType?: string; // 種別で絞る（departure/clock_out/... 未指定=すべて）
+}
 
 /**
- * 打刻写真ギャラリー（F-22/管理）。ドライバー別・月別に、日ごとの写真を集約して返す。
+ * 打刻写真ギャラリー（F-22/管理）。期間(from〜to)・ドライバー・種別で絞り、日ごとに写真を集約して返す。
  *   保存パス規約 {yyyymm}/{driver_id}/... のとおり実質「ドライバーのフォルダ」を横断表示する。
  *   非公開バケットのため createSignedUrls で一括署名（1時間）。service_role で実行すること。
  */
-export async function getPhotoGallery(sb: SB, monthKey: string, driverId?: string): Promise<PhotoDay[]> {
-  const y = monthKey.slice(0, 4);
-  const m = monthKey.slice(4, 6);
-  const start = `${y}-${m}-01T00:00:00+09:00`;
-  const mo = Number(m);
-  const nextMo = mo === 12 ? `${Number(y) + 1}-01` : `${y}-${String(mo + 1).padStart(2, "0")}`;
-  const end = `${nextMo}-01T00:00:00+09:00`;
+export async function getPhotoGallery(sb: SB, f: PhotoGalleryFilter): Promise<PhotoDay[]> {
+  const start = `${f.from}T00:00:00+09:00`;
+  const end = `${addDay(f.to)}T00:00:00+09:00`; // to を含めるため翌日0時未満
 
   let q = sb
     .from("events")
@@ -46,7 +54,8 @@ export async function getPhotoGallery(sb: SB, monthKey: string, driverId?: strin
     .gte("occurred_at", start)
     .lt("occurred_at", end)
     .order("occurred_at", { ascending: false });
-  if (driverId) q = q.eq("driver_id", driverId);
+  if (f.driverId) q = q.eq("driver_id", f.driverId);
+  if (f.eventType) q = q.eq("event_type", f.eventType);
   const { data, error } = await q;
   if (error) throw error;
   const rows = data ?? [];
