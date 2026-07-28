@@ -34,6 +34,12 @@ interface Item {
   cargo_type?: string;
   receipts?: string;
 }
+interface Plan {
+  shipper?: string | null;
+  delivery_spot?: string | null;
+  vehicle_no?: string | null;
+  note?: string | null;
+}
 
 export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driverId: string; vehicleNo: string | null }) {
   const cfg = CONFIG[type];
@@ -61,6 +67,38 @@ export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driv
     const f = list?.[0];
     if (!f) return;
     setPhotos((prev) => (prev.length >= 3 ? prev : [...prev, f]));
+  }
+
+  // 今日の予定業務（現行GAS: loadTodayPlans / applyPlan の再現）
+  const [plans, setPlans] = useState<Plan[] | null>(null);
+  const [plansOpen, setPlansOpen] = useState(false);
+  const [plansLoading, setPlansLoading] = useState(false);
+
+  async function loadPlans() {
+    setPlansOpen((v) => !v);
+    if (plans) return;
+    setPlansLoading(true);
+    try {
+      const res = await fetch("/api/dispatch-plans/today");
+      const data = await res.json();
+      if (data.success) setPlans(data.plans as Plan[]);
+    } catch {
+      /* 予定取得失敗は打刻を妨げない */
+    } finally {
+      setPlansLoading(false);
+    }
+  }
+
+  /** 予定をタップ→空いている最初の明細に荷主・着荷地を転記（applyPlan 準拠）。 */
+  function applyPlan(p: Plan) {
+    setItems((prev) => {
+      const idx = prev.findIndex((it) => !it.shipper && !it.delivery_spot);
+      const t = idx >= 0 ? idx : 0;
+      return prev.map((it, i) =>
+        i === t ? { ...it, shipper: p.shipper ?? it.shipper, delivery_spot: p.delivery_spot ?? it.delivery_spot } : it,
+      );
+    });
+    setPlansOpen(false);
   }
 
   // 位置情報の取得（車番はドライバー割当で確定・入力不要）
@@ -191,6 +229,42 @@ export function PunchForm({ type, driverId, vehicleNo }: { type: EventType; driv
             <span className="text-sm font-medium text-slate-700">
               {cfg.items === "load" ? "積込明細" : "荷卸明細"}（最大3件）
             </span>
+
+            {/* 今日の予定業務を確認（現行GAS再現）: タップで荷主・着荷地を転記 */}
+            {cfg.items === "load" && (
+              <div>
+                <button
+                  type="button"
+                  onClick={loadPlans}
+                  className="w-full rounded-lg border border-blue-300 bg-blue-50 py-2 text-sm font-bold text-blue-700"
+                >
+                  📋 今日の予定業務を確認
+                </button>
+                {plansOpen && (
+                  <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-slate-200">
+                    {plansLoading ? (
+                      <div className="p-3 text-center text-sm text-slate-400">読み込み中...</div>
+                    ) : !plans || plans.length === 0 ? (
+                      <div className="p-3 text-center text-sm text-slate-400">本日の予定は見つかりませんでした</div>
+                    ) : (
+                      plans.map((p, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => applyPlan(p)}
+                          className="block w-full border-b border-slate-100 p-3 text-left last:border-b-0 hover:bg-blue-50"
+                        >
+                          <div className="text-xs font-bold text-slate-400">件数 {i + 1}{p.vehicle_no ? ` ・ 車番 ${p.vehicle_no}` : ""}</div>
+                          <div className="mt-0.5 text-sm font-medium text-slate-800">{p.shipper || "（荷主未定）"}</div>
+                          <div className="text-xs text-slate-500">→ {p.delivery_spot || "（着荷地未定）"}</div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {items.map((it, i) => (
               <div key={i} className="rounded-lg border border-slate-200 p-3">
                 <div className="mb-2 text-xs text-slate-400">{i + 1}件目</div>

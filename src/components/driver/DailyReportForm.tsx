@@ -56,6 +56,10 @@ export function DailyReportForm() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  // 今日の予定業務（現行GAS: loadTodayPlans / applyPlan の再現）
+  const [plans, setPlans] = useState<{ shipper?: string | null; delivery_spot?: string | null; vehicle_no?: string | null }[] | null>(null);
+  const [plansOpen, setPlansOpen] = useState(false);
+  const [plansLoading, setPlansLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -152,6 +156,33 @@ export function DailyReportForm() {
     }
   }
 
+  async function loadPlans() {
+    setPlansOpen((v) => !v);
+    if (plans) return;
+    setPlansLoading(true);
+    try {
+      const res = await fetch("/api/dispatch-plans/today");
+      const data = await res.json();
+      if (data.success) setPlans(data.plans);
+    } catch {
+      /* 予定取得失敗は日報作成を妨げない */
+    } finally {
+      setPlansLoading(false);
+    }
+  }
+
+  /** 予定をタップ→空いている最初の明細に荷主・着地を転記（applyPlan 準拠）。 */
+  function applyPlanToLeg(p: { shipper?: string | null; delivery_spot?: string | null }) {
+    setLegs((prev) => {
+      const list = prev.length ? prev.slice() : [{ shipper: "" }];
+      let idx = list.findIndex((l) => !l.shipper && !l.destination_spot);
+      if (idx < 0) { list.push({}); idx = list.length - 1; }
+      list[idx] = { ...list[idx], shipper: p.shipper ?? list[idx]!.shipper, destination_spot: p.delivery_spot ?? list[idx]!.destination_spot };
+      return list;
+    });
+    setPlansOpen(false);
+  }
+
   if (loading) return <main className="p-4 text-slate-400">読込中...</main>;
 
   return (
@@ -186,8 +217,27 @@ export function DailyReportForm() {
       <section className="mt-5">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-sm font-medium">運行明細</span>
-          <button onClick={() => setLegs((p) => [...p, { shipper: "" }])} className="text-sm text-blue-600">＋追加</button>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={loadPlans} className="text-sm font-bold text-blue-600">📋 今日の予定</button>
+            <button onClick={() => setLegs((p) => [...p, { shipper: "" }])} className="text-sm text-blue-600">＋追加</button>
+          </div>
         </div>
+        {plansOpen && (
+          <div className="mb-2 max-h-56 overflow-y-auto rounded-lg border border-slate-200">
+            {plansLoading ? (
+              <div className="p-3 text-center text-sm text-slate-400">読み込み中...</div>
+            ) : !plans || plans.length === 0 ? (
+              <div className="p-3 text-center text-sm text-slate-400">本日の予定は見つかりませんでした</div>
+            ) : (
+              plans.map((p, i) => (
+                <button key={i} type="button" onClick={() => applyPlanToLeg(p)} className="block w-full border-b border-slate-100 p-2.5 text-left last:border-b-0 hover:bg-blue-50">
+                  <div className="text-xs font-bold text-slate-400">件数 {i + 1}{p.vehicle_no ? ` ・ 車番 ${p.vehicle_no}` : ""}</div>
+                  <div className="text-sm font-medium text-slate-800">{p.shipper || "（荷主未定）"} <span className="text-slate-400">→</span> {p.delivery_spot || "（着地未定）"}</div>
+                </button>
+              ))
+            )}
+          </div>
+        )}
         {legs.map((l, i) => (
           <div key={i} className="mb-2 rounded-lg border border-slate-200 p-2">
             <div className="grid grid-cols-2 gap-2">
