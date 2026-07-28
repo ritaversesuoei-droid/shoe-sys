@@ -4,6 +4,7 @@ import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { toWorkDate } from "@/lib/datekey";
 import { DispatchSyncButton } from "@/components/admin/DispatchSyncButton";
+import { PrintButton } from "@/components/admin/PrintButton";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,10 @@ export default async function DispatchPage({
 
   return (
     <main className="mx-auto max-w-7xl p-6">
-      <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      {/* 印刷時: ナビ非表示・A4横 */}
+      <style>{`@media print { nav { display: none !important; } @page { size: A4 landscape; margin: 8mm; } main { padding: 0 !important; max-width: none !important; } }`}</style>
+
+      <header className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div>
           <h1 className="text-2xl font-bold">配車表（流れ表）</h1>
           <Link href="/admin" className="text-sm text-blue-600">← ダッシュボード</Link>
@@ -66,6 +70,7 @@ export default async function DispatchPage({
         </div>
         <DispatchSyncButton />
         <div className="flex items-center gap-2">
+          <PrintButton label="🖨️ A4印刷" />
           <Link href={`/admin/dispatch?date=${shift(-1)}`} className="rounded-xl bg-slate-200 px-4 py-3 text-base font-bold text-slate-700 hover:bg-slate-300">◀ 前日</Link>
           <form method="GET" className="flex items-center gap-2">
             <input type="date" name="date" defaultValue={day} min={earliest?.plan_date ?? undefined} max={latest?.plan_date ?? undefined} className="rounded-lg border border-slate-300 px-3 py-3 text-base" />
@@ -74,6 +79,12 @@ export default async function DispatchPage({
           <Link href={`/admin/dispatch?date=${shift(1)}`} className="rounded-xl bg-slate-200 px-4 py-3 text-base font-bold text-slate-700 hover:bg-slate-300">翌日 ▶</Link>
         </div>
       </header>
+
+      {/* 印刷用タイトル（画面では非表示） */}
+      <div className="mb-2 hidden print:block">
+        <h1 className="text-xl font-bold">配車表（流れ表）　{day}</h1>
+        <p className="text-xs text-slate-500">全{rows.length}件（自社{own} / 子車{sub}）</p>
+      </div>
 
       <p className="mb-3 text-sm text-slate-500">
         {day}　全{rows.length}件（自社{own} / 子車{sub}）
@@ -85,8 +96,8 @@ export default async function DispatchPage({
       {rows.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-slate-400">{day} の配車データがありません</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-lg border print:overflow-visible print:border-0">
+          <table className="w-full text-sm print:text-[10px]">
             <thead className="bg-slate-50 text-left">
               <tr>
                 <th className="p-2 whitespace-nowrap">所属</th>

@@ -36,6 +36,21 @@ function itemLine(e: TimEvent): string {
   return [head, ...parts].filter(Boolean).join(" / ");
 }
 
+/** 1打刻の地図URL（座標優先・無ければ住所検索）。 */
+function mapUrlForEvent(e: TimEvent): string | null {
+  if (e.lat != null && e.lng != null) return `https://www.google.com/maps/search/?api=1&query=${e.lat},${e.lng}`;
+  if (e.address) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.address)}`;
+  return null;
+}
+/** 当日の経路URL（座標が2点以上ならGoogleマップの経路、1点なら地点、無ければ最後の住所）。 */
+function routeUrlForRow(r: TimRow): string | null {
+  const pts = r.events.filter((e) => e.lat != null && e.lng != null).map((e) => `${e.lat},${e.lng}`);
+  if (pts.length >= 2) return `https://www.google.com/maps/dir/${pts.join("/")}`;
+  if (pts.length === 1) return `https://www.google.com/maps/search/?api=1&query=${pts[0]}`;
+  const addr = [...r.events].reverse().find((e) => e.address)?.address;
+  return addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : null;
+}
+
 export function TimBoard({
   day,
   rows,
@@ -112,11 +127,19 @@ export function TimBoard({
                 return (
                   <tr key={r.driverId} className="border-b-2 border-slate-900 last:border-b-0">
                     <td className={`sticky left-0 z-10 w-32 min-w-[8rem] border-r-2 border-slate-900 px-2 py-2 align-top ${st.cell}`}>
-                      <div className="font-black leading-tight text-slate-900">{r.name}</div>
-                      <div className="mt-1 flex items-center gap-1">
+                      <div className="flex items-center gap-1 font-black leading-tight text-slate-900">
+                        <span>{r.name}</span>
+                        {r.lineUserId && <span title="LINE連携済み" className="text-sm leading-none">💬</span>}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
                         <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold text-white ${st.badge}`}>{st.text}</span>
                         {r.code && <span className="text-[10px] text-slate-500">{r.code}</span>}
                       </div>
+                      {routeUrlForRow(r) && (
+                        <a href={routeUrlForRow(r)!} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block rounded border border-slate-400 bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50">
+                          🗺️ 経路
+                        </a>
+                      )}
                     </td>
                     <td className="bg-slate-50 px-2 py-2">
                       <div className="flex flex-nowrap items-stretch gap-1.5">
@@ -174,6 +197,11 @@ export function TimBoard({
                 return seg ? <div key={i} className="rounded bg-slate-50 px-2 py-1 text-xs text-slate-600">{seg}</div> : null;
               })}
               {detail.ev.note && <div><b className="text-slate-500">特記</b> {detail.ev.note}</div>}
+              {mapUrlForEvent(detail.ev) && (
+                <a href={mapUrlForEvent(detail.ev)!} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block rounded-lg border-2 border-slate-900 bg-white px-3 py-1.5 text-sm font-bold text-slate-800 shadow-[2px_2px_0_0_#0f172a]">
+                  📍 地図で開く
+                </a>
+              )}
             </div>
             <button onClick={() => setDetail(null)} className="mt-4 w-full rounded-lg border-2 border-slate-900 bg-slate-900 py-2 font-bold text-white">閉じる</button>
           </div>
