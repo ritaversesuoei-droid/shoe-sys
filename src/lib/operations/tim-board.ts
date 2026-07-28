@@ -25,6 +25,7 @@ export interface TimEvent {
   lat: number | null;
   lng: number | null;
   items: TimItem[];
+  photos: string[]; // 署名付きURL（非公開バケット event-photos・有効期限付き）
 }
 export interface TimRow {
   driverId: string;
@@ -62,7 +63,7 @@ export async function getTimBoard(sb: SB, dateStr: string): Promise<TimRow[]> {
   const { data: events, error } = await sb
     .from("events")
     .select(
-      "id, driver_id, event_type, occurred_at, address, note, lat, lng, drivers(code, name, line_user_id), customers(name), event_items(shipper, delivery_spot, quantity, weight, cargo_type, receipts, slip_no)",
+      "id, driver_id, event_type, occurred_at, address, note, lat, lng, drivers(code, name, line_user_id), customers(name), event_items(shipper, delivery_spot, quantity, weight, cargo_type, receipts, slip_no), event_photos(storage_path, seq)",
     )
     .gte("occurred_at", start)
     .lt("occurred_at", end)
@@ -70,6 +71,7 @@ export async function getTimBoard(sb: SB, dateStr: string): Promise<TimRow[]> {
   if (error) throw error;
 
   const map = new Map<string, TimRow>();
+  const pathsByEvent = new Map<string, string[]>(); // event.id → storage_path[]（後で署名URL化）
   for (const e of events ?? []) {
     const drv = e.drivers as { code: string; name: string; line_user_id: string | null } | null;
     const cust = e.customers as { name: string } | null;
@@ -86,6 +88,11 @@ export async function getTimBoard(sb: SB, dateStr: string): Promise<TimRow[]> {
       };
       map.set(e.driver_id, row);
     }
+    const photos = (e.event_photos ?? []) as { storage_path: string; seq: number | null }[];
+    pathsByEvent.set(
+      e.id,
+      photos.slice().sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0)).map((p) => p.storage_path),
+    );
     row.events.push({
       id: e.id,
       time: jstHHMM(e.occurred_at),
@@ -96,8 +103,22 @@ export async function getTimBoard(sb: SB, dateStr: string): Promise<TimRow[]> {
       lat: e.lat,
       lng: e.lng,
       items: (e.event_items ?? []) as TimItem[],
+      photos: [],
     });
     row.lastAt = e.occurred_at;
+  }
+
+  // 写真: 非公開バケットの storage_path を一括で署名付きURLに変換（有効期限1時間）
+  const allPaths = [...new Set([...pathsByEvent.values()].flat())];
+  if (allPaths.length) {
+    const { data: signed } = await sb.storage.from("event-photos").createSignedUrls(allPaths, 3600);
+    const urlByPath = new Map<string, string>();
+    for (const s of signed ?? []) if (s.path && s.signedUrl) urlByPath.set(s.path, s.signedUrl);
+    for (const row of map.values()) {
+      for (const ev of row.events) {
+        ev.photos = (pathsByEvent.get(ev.id) ?? []).map((p) => urlByPath.get(p)).filter((u): u is string => !!u);
+      }
+    }
   }
 
   for (const row of map.values()) {

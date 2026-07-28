@@ -153,7 +153,10 @@ export function TimBoard({
                               className={`shrink-0 rounded-lg border-2 px-2 py-1 text-left shadow-[2px_2px_0_0_rgba(15,23,42,0.25)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none ${m.cls}`}
                               title={`${m.label} ${e.time}`}
                             >
-                              <div className="whitespace-nowrap text-xs font-black tabular-nums">{m.short} {e.time}</div>
+                              <div className="flex items-center gap-1 whitespace-nowrap text-xs font-black tabular-nums">
+                                <span>{m.short} {e.time}</span>
+                                {e.photos.length > 0 && <span title="写真あり">📷</span>}
+                              </div>
                               {sub && <div className="mt-0.5 max-w-[9rem] truncate text-[10px] font-medium opacity-80">{sub}</div>}
                             </button>
                           );
@@ -182,7 +185,10 @@ export function TimBoard({
             </div>
             <div className="space-y-1.5 text-sm">
               <div><b className="text-slate-500">時間</b> <span className="font-bold tabular-nums">{detail.ev.time}</span></div>
-              {detail.ev.type !== "departure" && <div><b className="text-slate-500">場所</b> {detail.ev.address || "—"}</div>}
+              <div><b className="text-slate-500">住所</b> <span className="break-words">{detail.ev.address || "（住所情報なし）"}</span></div>
+              {detail.ev.lat != null && detail.ev.lng != null && (
+                <div className="text-xs text-slate-400">座標 {detail.ev.lat.toFixed(6)}, {detail.ev.lng.toFixed(6)}</div>
+              )}
               {detail.ev.customer && <div><b className="text-slate-500">客先</b> {detail.ev.customer}</div>}
               {detail.ev.items.map((it, i) => {
                 const seg = [
@@ -197,6 +203,19 @@ export function TimBoard({
                 return seg ? <div key={i} className="rounded bg-slate-50 px-2 py-1 text-xs text-slate-600">{seg}</div> : null;
               })}
               {detail.ev.note && <div><b className="text-slate-500">特記</b> {detail.ev.note}</div>}
+              {detail.ev.photos.length > 0 && (
+                <div>
+                  <b className="text-slate-500">📷 写真（{detail.ev.photos.length}枚・タップで拡大）</b>
+                  <div className="mt-1 grid grid-cols-3 gap-2">
+                    {detail.ev.photos.map((url, i) => (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt={`写真${i + 1}`} className="h-24 w-full rounded-lg border-2 border-slate-300 object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
               {mapUrlForEvent(detail.ev) && (
                 <a href={mapUrlForEvent(detail.ev)!} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block rounded-lg border-2 border-slate-900 bg-white px-3 py-1.5 text-sm font-bold text-slate-800 shadow-[2px_2px_0_0_#0f172a]">
                   📍 地図で開く
