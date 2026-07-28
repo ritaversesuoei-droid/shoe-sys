@@ -31,22 +31,39 @@ async function gsiReverse(lat: number, lng: number): Promise<ReverseResult> {
   return { address: r.lv01Nm, raw: data };
 }
 
+/** 「日本、〒xxx-xxxx 」等の接頭辞を除去して 都道府県〜番地 だけにする。 */
+function cleanJaAddress(addr: string): string {
+  return addr
+    .replace(/^日本、?\s*/, "")
+    .replace(/^〒?\s*\d{3}-?\d{4}\s*/, "")
+    .trim();
+}
+
 async function googleReverse(lat: number, lng: number, key: string): Promise<ReverseResult> {
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&language=ja&key=${key}`;
+  // result_type で番地(street_address/premise)を優先し、番地入りの住所を得る
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&language=ja&region=jp&key=${key}`;
   const res = await fetchWithTimeout(url);
   if (!res.ok) return { address: null };
-  const data = (await res.json()) as { results?: { formatted_address?: string }[] };
-  return { address: data.results?.[0]?.formatted_address ?? null, raw: data };
+  const data = (await res.json()) as { results?: { formatted_address?: string; types?: string[] }[] };
+  const results = data.results ?? [];
+  // 番地レベル(street_address/premise)を優先、無ければ先頭
+  const best =
+    results.find((r) => r.types?.some((t) => t === "street_address" || t === "premise")) ?? results[0];
+  const addr = best?.formatted_address ? cleanJaAddress(best.formatted_address) : null;
+  return { address: addr, raw: data };
 }
 
 export async function reverseGeocode(lat: number, lng: number): Promise<ReverseResult> {
-  const provider = process.env.GEOCODER ?? "gsi";
+  const explicit = process.env.GEOCODER; // "gsi" | "google" | "none" | undefined
+  const key = process.env.GOOGLE_MAPS_API_KEY;
   try {
-    if (provider === "none") return { address: null };
+    if (explicit === "none") return { address: null };
+    // 明示指定が無ければ、キーがあれば Google（番地まで）、無ければ GSI（町丁目まで）を自動選択
+    const provider = explicit ?? (key ? "google" : "gsi");
     if (provider === "google") {
-      const key = process.env.GOOGLE_MAPS_API_KEY;
-      if (!key) return { address: null };
-      return await googleReverse(lat, lng, key);
+      if (!key) return await gsiReverse(lat, lng); // キー未設定なら GSI へフォールバック
+      const g = await googleReverse(lat, lng, key);
+      return g.address ? g : await gsiReverse(lat, lng); // Google が空なら GSI で補完
     }
     return await gsiReverse(lat, lng);
   } catch {
