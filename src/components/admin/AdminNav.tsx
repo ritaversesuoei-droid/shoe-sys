@@ -10,6 +10,7 @@ const ITEMS: { href: string; icon: string; label: string; color: string }[] = [
   { href: "/admin/attendance", icon: "⏱️", label: "勤怠修正", color: "bg-amber-100 text-amber-800" },
   { href: "/admin/dispatch", icon: "🚚", label: "配車表", color: "bg-sky-100 text-sky-800" },
   { href: "/admin/reports", icon: "📄", label: "日報", color: "bg-emerald-100 text-emerald-800" },
+  { href: "/admin/photos", icon: "📷", label: "写真", color: "bg-fuchsia-100 text-fuchsia-800" },
   { href: "/admin/monthly", icon: "📊", label: "月次集計", color: "bg-indigo-100 text-indigo-800" },
   { href: "/admin/warnings", icon: "⚠️", label: "警告", color: "bg-rose-100 text-rose-800" },
   { href: "/admin/masters", icon: "🗂️", label: "マスタ", color: "bg-teal-100 text-teal-800" },
