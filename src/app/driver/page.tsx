@@ -10,16 +10,16 @@ export const dynamic = "force-dynamic";
  * ドライバーメニュー（S-02 / 仕様書 9.1）。未ログインはログイン画面。
  */
 const ACTIONS: { key: string; label: string; href: string; tone?: string }[] = [
-  { key: "departure", label: "出勤", href: "/driver/punch/departure", tone: "bg-slate-900 text-white" },
-  { key: "arrival", label: "到着報告", href: "/driver/punch/arrival" },
-  { key: "loading", label: "積込完了", href: "/driver/punch/loading" },
-  { key: "unloading", label: "荷卸完了", href: "/driver/punch/unloading" },
-  { key: "leg_departure", label: "長距離再出発", href: "/driver/punch/leg_departure" },
+  { key: "departure", label: "☀️ 出勤報告", href: "/driver/punch/departure", tone: "bg-slate-900 text-white" },
+  { key: "arrival", label: "📍 到着報告", href: "/driver/punch/arrival" },
+  { key: "loading", label: "📦 積込完了", href: "/driver/punch/loading" },
+  { key: "unloading", label: "📤 荷卸完了", href: "/driver/punch/unloading" },
+  { key: "leg_departure", label: "🔄 長距離再出発", href: "/driver/punch/leg_departure" },
   { key: "rest", label: "☕ 休憩", href: "/driver/rest", tone: "bg-blue-600 text-white" },
-  { key: "long_rest", label: "長距離休憩", href: "/driver/punch/long_rest" },
-  { key: "clock_out", label: "退勤", href: "/driver/punch/clock_out", tone: "bg-orange-600 text-white" },
-  { key: "report", label: "日報作成", href: "/driver/report" },
-  { key: "history", label: "当日履歴", href: "/driver/history" },
+  { key: "long_rest", label: "🌙 長距離休憩", href: "/driver/punch/long_rest" },
+  { key: "clock_out", label: "🏠 退勤報告", href: "/driver/punch/clock_out", tone: "bg-orange-600 text-white" },
+  { key: "report", label: "📝 日報作成（乗務記録）", href: "/driver/report" },
+  { key: "history", label: "📋 今日の履歴", href: "/driver/history" },
 ];
 
 export default async function DriverHome() {
