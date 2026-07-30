@@ -28,9 +28,14 @@ function weekStart(workDate: string): string {
  */
 export async function recomputeAllMetrics(
   sb: SB,
+  opts: { driverIds?: string[] } = {},
 ): Promise<{ shifts: number; alerts: number }> {
   const config = await loadComplianceConfig(sb);
-  const { data: drivers, error } = await sb.from("drivers").select("id");
+  // driverIds 指定時はそのドライバーのみ再計算（差分ミラーの高速化用。
+  //   週次・前勤務休息の文脈は各ドライバーの全勤務を辿るため精度は保たれる）。
+  let dq = sb.from("drivers").select("id");
+  if (opts.driverIds?.length) dq = dq.in("id", opts.driverIds);
+  const { data: drivers, error } = await dq;
   if (error) throw error;
 
   let shiftCount = 0;

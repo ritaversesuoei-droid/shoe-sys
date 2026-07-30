@@ -4,6 +4,7 @@ import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { toWorkDate } from "@/lib/datekey";
 import { DispatchSyncButton } from "@/components/admin/DispatchSyncButton";
+import { MirrorButton } from "@/components/admin/MirrorButton";
 import { PrintButton } from "@/components/admin/PrintButton";
 import { DispatchTable } from "@/components/admin/DispatchTable";
 
@@ -71,7 +72,10 @@ export default async function DispatchPage({
             <p className="text-xs text-slate-400">データ源: TROUD（流れ表シート）。取込は同期ボタンを押したときだけ・自動反映なし</p>
           </div>
         </div>
-        <DispatchSyncButton />
+        <div className="flex items-center gap-2">
+          <MirrorButton />
+          <DispatchSyncButton />
+        </div>
         <div className="flex items-center gap-2">
           <PrintButton label="🖨️ A4印刷" />
           <Link href={`/admin/dispatch?date=${shift(-1)}`} className="rounded-xl bg-slate-200 px-4 py-3 text-base font-bold text-slate-700 hover:bg-slate-300">◀ 前日</Link>
