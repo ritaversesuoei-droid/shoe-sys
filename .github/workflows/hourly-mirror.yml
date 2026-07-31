@@ -1,0 +1,39 @@
+name: hourly-mirror
+
+# 並行運用ミラー（現行スプレッドシート → shoei-sys）を1時間ごとに起動する。
+# Vercel Hobby プランは毎時 Cron を使えないため、GitHub Actions から本番の
+# /api/cron/mirror を叩く方式にしている。手動起動も可（Run workflow）。
+#
+# 必要なリポジトリ Secret（Settings → Secrets and variables → Actions）:
+#   CRON_SECRET … Vercel 環境変数 CRON_SECRET と同じ値
+# 任意の Variable（Settings → Secrets and variables → Actions → Variables）:
+#   MIRROR_URL  … 既定 https://shoe-sys.vercel.app/api/cron/mirror（別URLの場合のみ設定）
+
+on:
+  schedule:
+    - cron: "0 * * * *" # 毎時0分（UTC）
+  workflow_dispatch: {}
+
+concurrency:
+  group: hourly-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger mirror endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          MIRROR_URL: ${{ vars.MIRROR_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET secret が未設定です。リポジトリの Secrets に追加してください。"; exit 1
+          fi
+          URL="${MIRROR_URL:-https://shoe-sys.vercel.app/api/cron/mirror}"
+          echo "POST(GET) $URL"
+          code=$(curl -sS -o /tmp/mirror_out -w "%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" "$URL")
+          echo "HTTP $code"
+          cat /tmp/mirror_out; echo
+          test "$code" = "200"
