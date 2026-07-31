@@ -28,7 +28,7 @@ jobs:
           MIRROR_URL: ${{ vars.MIRROR_URL }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
-            echo "CRON_SECRET secret が未設定です。リポジトリの Secrets に追加してください。"; exit 1
+            echo "CRON_SECRET secret が未設定のためスキップします（設定後に有効化されます）。"; exit 0
           fi
           URL="${MIRROR_URL:-https://shoe-sys.vercel.app/api/cron/mirror}"
           echo "POST(GET) $URL"
