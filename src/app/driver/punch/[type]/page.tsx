@@ -32,7 +32,7 @@ export default async function PunchPage({
   const supabase = await createClient();
   const { data: drv } = await supabase
     .from("drivers")
-    .select("default_vehicle_no")
+    .select("name, default_vehicle_no")
     .eq("id", ctx.driverId)
     .maybeSingle();
 
@@ -62,6 +62,7 @@ export default async function PunchPage({
     <PunchForm
       type={type as ValidType}
       driverId={ctx.driverId}
+      driverName={drv?.name ?? null}
       vehicleNo={drv?.default_vehicle_no ?? null}
       unloadTargets={unloadTargets}
     />
