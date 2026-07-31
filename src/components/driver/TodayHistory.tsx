@@ -52,7 +52,7 @@ export function TodayHistory() {
   return (
     <main className="mx-auto max-w-md p-4">
       <header className="mb-4 flex items-center gap-2">
-        <Link href="/driver" className="text-slate-400">←</Link>
+        <Link href="/driver" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-bold text-slate-600 active:scale-95">← 戻る</Link>
         <h1 className="text-xl font-bold">当日履歴</h1>
       </header>
 

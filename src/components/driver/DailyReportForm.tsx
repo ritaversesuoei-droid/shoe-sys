@@ -188,7 +188,7 @@ export function DailyReportForm() {
   return (
     <main className="mx-auto max-w-md p-4">
       <header className="mb-4 flex items-center gap-2">
-        <Link href="/driver" className="text-slate-400">←</Link>
+        <Link href="/driver" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-bold text-slate-600 active:scale-95">← 戻る</Link>
         <h1 className="text-xl font-bold">日報作成</h1>
         {status === "confirmed" && (
           <span className="ml-auto rounded bg-orange-100 px-2 py-0.5 text-xs text-orange-700">確定済</span>

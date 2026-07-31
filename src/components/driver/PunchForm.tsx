@@ -32,6 +32,9 @@ const CONFIRM_META: Partial<Record<EventType, { short: string; icon: string; msg
   arrival: { short: "到着", icon: "📍", msg: "現在地とともに「到着」を報告します" },
 };
 
+// 写真は複数枚送るケースが多いので上限を広めに
+const MAX_PHOTOS = 8;
+
 interface Item {
   shipper?: string;
   delivery_spot?: string;
@@ -51,11 +54,13 @@ interface Plan {
 export function PunchForm({
   type,
   driverId,
+  driverName,
   vehicleNo,
   unloadTargets = [],
 }: {
   type: EventType;
   driverId: string;
+  driverName?: string | null;
   vehicleNo: string | null;
   unloadTargets?: string[];
 }) {
@@ -72,7 +77,8 @@ export function PunchForm({
   const [items, setItems] = useState<Item[]>(cfg.items ? [{}] : []);
   const [photos, setPhotos] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
-  const photoInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const libraryInputRef = useRef<HTMLInputElement>(null);
   const [plans, setPlans] = useState<Plan[] | null>(null);
   const [plansOpen, setPlansOpen] = useState(false);
   const [plansLoading, setPlansLoading] = useState(false);
@@ -109,10 +115,17 @@ export function PunchForm({
     }
   }, []);
 
+  // カメラ／ライブラリー どちらからでも、複数枚まとめて追加（上限 MAX_PHOTOS）
   function addPhoto(list: FileList | null) {
-    const f = list?.[0];
-    if (!f) return;
-    setPhotos((prev) => (prev.length >= 3 ? prev : [...prev, f]));
+    if (!list || list.length === 0) return;
+    setPhotos((prev) => {
+      const next = [...prev];
+      for (const f of Array.from(list)) {
+        if (next.length >= MAX_PHOTOS) break;
+        next.push(f);
+      }
+      return next;
+    });
   }
   function updateItem(i: number, patch: Item) {
     setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
@@ -249,10 +262,36 @@ export function PunchForm({
   return (
     <main className="mx-auto max-w-md p-4">
       <header className="mb-4 flex items-center gap-2">
-        <Link href="/driver" className="text-slate-400">←</Link>
+        <Link href="/driver" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-bold text-slate-600 active:scale-95">← 戻る</Link>
         <h1 className="text-xl font-bold">{cfg.label}</h1>
-        <span className="ml-auto rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">車番 {vehicleNo || "未設定"}</span>
+        {driverName && (
+          <span className="ml-auto rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">{driverName}</span>
+        )}
       </header>
+
+      {/* 写真入力（カメラ／ライブラリー 共通・複数対応）。各モードのボタンから起動 */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        hidden
+        onChange={(e) => {
+          addPhoto(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={libraryInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(e) => {
+          addPhoto(e.target.files);
+          e.target.value = "";
+        }}
+      />
 
       {/* ── 確認のみ（出勤・退勤・到着）── */}
       {mode === "confirm" && (
@@ -266,7 +305,7 @@ export function PunchForm({
           <button onClick={submit} disabled={submitting} className="rounded-2xl bg-slate-900 px-4 py-5 text-xl font-bold text-white active:scale-[0.99] disabled:opacity-50">
             {submitting ? "送信中..." : `${CONFIRM_META[type]?.short}を送信`}
           </button>
-          <Link href="/driver" className="text-center text-sm text-slate-500">やめる</Link>
+          <Link href="/driver" className="rounded-xl border-2 border-slate-300 px-4 py-3 text-center text-base font-bold text-slate-600 active:scale-[0.99]">← 戻る</Link>
         </div>
       )}
 
@@ -275,49 +314,41 @@ export function PunchForm({
         <div className="flex flex-col gap-5 pt-2">
           <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 text-center">
             <p className="text-lg font-bold text-amber-800">📷 アルコールチェック</p>
-            <p className="mt-1 text-sm text-amber-700">カメラで撮影して送信してください</p>
+            <p className="mt-1 text-sm text-amber-700">撮影、またはライブラリーから選択して送信してください</p>
           </div>
-          <input
-            ref={photoInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            hidden
-            onChange={(e) => {
-              addPhoto(e.target.files);
-              e.target.value = "";
-            }}
-          />
-          {previews.length === 0 ? (
-            <button
-              onClick={() => photoInputRef.current?.click()}
-              className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-amber-400 bg-amber-50 py-12 text-xl font-bold text-amber-700 active:scale-[0.99]"
-            >
-              <span className="text-5xl">📷</span>
-              カメラを起動
-            </button>
-          ) : (
-            <div className="flex flex-col items-center gap-3">
-              <div className="flex flex-wrap justify-center gap-2">
-                {previews.map((src, i) => (
-                  <div key={i} className="relative">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt={`写真${i + 1}`} className="h-36 w-36 rounded-lg border border-slate-300 object-cover" />
-                    <button
-                      onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
-                      aria-label="削除"
-                      className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-slate-800 text-white"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-              {photos.length < 3 && (
-                <button onClick={() => photoInputRef.current?.click()} className="rounded-lg border border-amber-400 px-4 py-2 text-sm font-bold text-amber-700">
-                  📷 撮り直す・追加
-                </button>
-              )}
+          {previews.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-2">
+              {previews.map((src, i) => (
+                <div key={i} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt={`写真${i + 1}`} className="h-36 w-36 rounded-lg border border-slate-300 object-cover" />
+                  <button
+                    onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+                    aria-label="削除"
+                    className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-slate-800 text-white"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {photos.length < MAX_PHOTOS && (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => cameraInputRef.current?.click()}
+                className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-amber-400 bg-amber-50 py-8 text-base font-bold text-amber-700 active:scale-[0.99]"
+              >
+                <span className="text-4xl">📷</span>
+                カメラで撮影
+              </button>
+              <button
+                onClick={() => libraryInputRef.current?.click()}
+                className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-amber-400 bg-amber-50 py-8 text-base font-bold text-amber-700 active:scale-[0.99]"
+              >
+                <span className="text-4xl">🖼</span>
+                ライブラリーから選択
+              </button>
             </div>
           )}
           {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
@@ -326,8 +357,9 @@ export function PunchForm({
             disabled={submitting || photos.length === 0}
             className="rounded-2xl bg-orange-600 px-4 py-5 text-xl font-bold text-white active:scale-[0.99] disabled:opacity-50"
           >
-            {submitting ? "送信中..." : "この写真を送信"}
+            {submitting ? "送信中..." : `この写真を送信${photos.length > 1 ? `（${photos.length}枚）` : ""}`}
           </button>
+          <Link href="/driver" className="rounded-xl border-2 border-slate-300 px-4 py-3 text-center text-base font-bold text-slate-600 active:scale-[0.99]">← 戻る</Link>
         </div>
       )}
 
@@ -386,13 +418,16 @@ export function PunchForm({
               <div key={i} className="rounded-lg border border-slate-200 p-3">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs text-slate-400">{i + 1}件目</span>
-                  <button
-                    type="button"
-                    onClick={() => setItems((p) => p.filter((_, idx) => idx !== i))}
-                    className="rounded px-2 py-0.5 text-xs font-bold text-red-500 hover:bg-red-50"
-                  >
-                    🗑 削除
-                  </button>
+                  {/* 1件目は必須なので削除ボタンを出さない（2件目以降のみ） */}
+                  {i > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setItems((p) => p.filter((_, idx) => idx !== i))}
+                      className="rounded px-2 py-0.5 text-xs font-bold text-red-500 hover:bg-red-50"
+                    >
+                      🗑 削除
+                    </button>
+                  )}
                 </div>
                 {cfg.items === "load" ? (
                   <div className="grid grid-cols-2 gap-2">
@@ -400,12 +435,12 @@ export function PunchForm({
                     <input placeholder="着荷地" value={it.delivery_spot ?? ""} onChange={(e) => updateItem(i, { delivery_spot: e.target.value })} className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
                     <input placeholder="数量" inputMode="decimal" value={it.quantity ?? ""} onChange={(e) => updateItem(i, { quantity: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
                     <input placeholder="重量" inputMode="decimal" value={it.weight ?? ""} onChange={(e) => updateItem(i, { weight: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <input placeholder="伝票" inputMode="numeric" value={it.slip_no ?? ""} onChange={(e) => updateItem(i, { slip_no: e.target.value })} className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <input placeholder="伝票" inputMode="decimal" value={it.slip_no ?? ""} onChange={(e) => updateItem(i, { slip_no: e.target.value })} className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
                     <input placeholder="品種確認" value={it.cargo_type ?? ""} onChange={(e) => updateItem(i, { cargo_type: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <input placeholder="受領書枚数" inputMode="numeric" value={it.receipts ?? ""} onChange={(e) => updateItem(i, { receipts: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <input placeholder="受領書枚数" inputMode="decimal" value={it.receipts ?? ""} onChange={(e) => updateItem(i, { receipts: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
                   </div>
                 )}
               </div>
@@ -418,18 +453,7 @@ export function PunchForm({
           </div>
 
           <div className="block">
-            <span className="text-sm text-slate-600">写真（荷姿 等・任意）</span>
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              hidden
-              onChange={(e) => {
-                addPhoto(e.target.files);
-                e.target.value = "";
-              }}
-            />
+            <span className="text-sm text-slate-600">写真（荷姿 等・任意／複数可）</span>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {previews.map((src, i) => (
                 <div key={i} className="relative">
@@ -438,11 +462,17 @@ export function PunchForm({
                   <button onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))} aria-label="削除" className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-sm text-white">×</button>
                 </div>
               ))}
-              {photos.length < 3 && (
-                <button type="button" onClick={() => photoInputRef.current?.click()} className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-slate-300 text-xs font-medium text-slate-500">
-                  <span className="text-2xl leading-none">📷</span>
-                  {photos.length === 0 ? "カメラ" : "追加"}
-                </button>
+              {photos.length < MAX_PHOTOS && (
+                <>
+                  <button type="button" onClick={() => cameraInputRef.current?.click()} className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-slate-300 text-xs font-medium text-slate-500">
+                    <span className="text-2xl leading-none">📷</span>
+                    カメラ
+                  </button>
+                  <button type="button" onClick={() => libraryInputRef.current?.click()} className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-slate-300 text-xs font-medium text-slate-500">
+                    <span className="text-2xl leading-none">🖼</span>
+                    ライブラリー
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -457,6 +487,7 @@ export function PunchForm({
           <button onClick={submit} disabled={submitting} className="rounded-xl bg-slate-900 px-4 py-4 text-lg font-bold text-white disabled:opacity-50">
             {submitting ? "送信中..." : `${cfg.label} を記録`}
           </button>
+          <Link href="/driver" className="rounded-xl border-2 border-slate-300 px-4 py-3 text-center text-base font-bold text-slate-600 active:scale-[0.99]">← 戻る</Link>
         </div>
       )}
 
@@ -524,7 +555,7 @@ export function PunchForm({
 
           <input
             placeholder="受領書枚数"
-            inputMode="numeric"
+            inputMode="decimal"
             value={receipts}
             onChange={(e) => setReceipts(e.target.value)}
             className="w-full rounded-lg border border-slate-300 px-3 py-2.5"
@@ -546,7 +577,7 @@ export function PunchForm({
           >
             {submitting ? "送信中..." : "この内容で送信"}
           </button>
-          <Link href="/driver" className="text-center text-blue-600">戻る</Link>
+          <Link href="/driver" className="rounded-xl border-2 border-slate-300 px-4 py-3 text-center text-base font-bold text-slate-600 active:scale-[0.99]">← 戻る</Link>
         </div>
       )}
     </main>
