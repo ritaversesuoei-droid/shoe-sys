@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/photo";
 import { to_month_key } from "@/lib/datekey";
+import { TenkeyInput } from "@/components/driver/TenkeyInput";
 
 type EventType =
   | "departure"
@@ -433,14 +434,14 @@ export function PunchForm({
                   <div className="grid grid-cols-2 gap-2">
                     <input placeholder="荷主" value={it.shipper ?? ""} onChange={(e) => updateItem(i, { shipper: e.target.value })} className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
                     <input placeholder="着荷地" value={it.delivery_spot ?? ""} onChange={(e) => updateItem(i, { delivery_spot: e.target.value })} className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <input placeholder="数量" inputMode="decimal" value={it.quantity ?? ""} onChange={(e) => updateItem(i, { quantity: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <input placeholder="重量" inputMode="decimal" value={it.weight ?? ""} onChange={(e) => updateItem(i, { weight: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <input placeholder="伝票" inputMode="decimal" value={it.slip_no ?? ""} onChange={(e) => updateItem(i, { slip_no: e.target.value })} className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <TenkeyInput placeholder="数量" value={it.quantity ?? ""} onChange={(v) => updateItem(i, { quantity: v })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <TenkeyInput placeholder="重量" value={it.weight ?? ""} onChange={(v) => updateItem(i, { weight: v })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <TenkeyInput placeholder="伝票" value={it.slip_no ?? ""} onChange={(v) => updateItem(i, { slip_no: v })} className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
                     <input placeholder="品種確認" value={it.cargo_type ?? ""} onChange={(e) => updateItem(i, { cargo_type: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <input placeholder="受領書枚数" inputMode="decimal" value={it.receipts ?? ""} onChange={(e) => updateItem(i, { receipts: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <TenkeyInput placeholder="受領書枚数" value={it.receipts ?? ""} onChange={(v) => updateItem(i, { receipts: v })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
                   </div>
                 )}
               </div>
@@ -553,11 +554,10 @@ export function PunchForm({
             </label>
           </div>
 
-          <input
+          <TenkeyInput
             placeholder="受領書枚数"
-            inputMode="decimal"
             value={receipts}
-            onChange={(e) => setReceipts(e.target.value)}
+            onChange={setReceipts}
             className="w-full rounded-lg border border-slate-300 px-3 py-2.5"
           />
           <textarea
