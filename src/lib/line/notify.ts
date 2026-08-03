@@ -39,6 +39,7 @@ export async function notifyBusinessReport(p: {
   lat?: number | null;
   lng?: number | null;
   items?: PunchItem[];
+  photoUrl?: string | null; // 荷姿等の写真（署名付きURL・1枚目）
 }): Promise<void> {
   const items = p.items ?? [];
   const lines =
@@ -63,6 +64,7 @@ export async function notifyBusinessReport(p: {
     vehicleNo: p.vehicleNo,
     place: p.place,
     lines: lines.length ? lines : [{ label: "内容", value: "（明細なし）" }],
+    photoUrl: p.photoUrl ?? null,
     mapUrl:
       p.lat != null && p.lng != null
         ? `https://www.google.com/maps?q=${p.lat},${p.lng}`
