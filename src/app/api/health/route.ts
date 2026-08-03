@@ -18,6 +18,7 @@ export async function GET() {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     ),
     line_messaging: !!(process.env.LINE_CHANNEL_SECRET && process.env.LINE_CHANNEL_ACCESS_TOKEN),
+    line_admin_target: !!process.env.LINE_ADMIN_TARGET_ID && !process.env.LINE_ADMIN_TARGET_ID.startsWith("your-"),
     liff: !!process.env.NEXT_PUBLIC_LIFF_ID,
     line_login: !!process.env.LINE_LOGIN_CHANNEL_ID,
     office_terminal: !!process.env.OFFICE_TERMINAL_TOKEN,
