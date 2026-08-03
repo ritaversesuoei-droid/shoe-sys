@@ -3,7 +3,7 @@ import { requireDriver } from "@/lib/auth";
 import { ok, handle } from "@/lib/api/response";
 import { createEventSchema } from "@/lib/validation";
 import { processPunch } from "@/lib/operations/punch";
-import { isLineConfigured, notifyBusinessReport, notifyWarning } from "@/lib/line/notify";
+import { isLineConfigured, notifyBusinessReport, notifyWarning, notifyDriverViolation } from "@/lib/line/notify";
 import { toWorkDate } from "@/lib/datekey";
 
 /**
@@ -62,11 +62,10 @@ export async function POST(request: Request) {
           .filter((i) => i.severity !== "info")
           .map((i) => ({ message: i.message }));
         if (violations.length) {
-          await notifyWarning({
-            driverName,
-            workDate: toWorkDate(body.occurred_at),
-            violations,
-          });
+          const workDate = toWorkDate(body.occurred_at);
+          await notifyWarning({ driverName, workDate, violations });
+          // 本人へもフィードバック（連携済みのみ・best-effort）
+          await notifyDriverViolation({ driverId: ctx.driverId, driverName, workDate, violations });
         }
       } catch (e) {
         console.error("[line] 通知失敗（打刻は成功）", e);

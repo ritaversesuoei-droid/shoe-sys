@@ -71,3 +71,23 @@ export async function htmlToPdf(html: string): Promise<Uint8Array> {
     await browser.close();
   }
 }
+
+/** HTML → PNG（LINEリッチメニュー画像など固定サイズの画像生成用）。 */
+export async function htmlToPng(
+  html: string,
+  opts: { width: number; height: number },
+): Promise<Uint8Array> {
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: opts.width, height: opts.height, deviceScaleFactor: 1 });
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    const buf = await page.screenshot({
+      type: "png",
+      clip: { x: 0, y: 0, width: opts.width, height: opts.height },
+    });
+    return buf as Uint8Array;
+  } finally {
+    await browser.close();
+  }
+}
