@@ -38,6 +38,15 @@ export async function POST(request: Request) {
       try {
         const driverName = ctx.displayName ?? "ドライバー";
         if (body.event_type === "loading" || body.event_type === "unloading") {
+          // 荷姿等の写真（非公開バケット）を1枚目だけ署名URL化して通知に添付
+          let photoUrl: string | null = null;
+          const firstPath = body.photo_paths?.[0];
+          if (firstPath) {
+            const { data: signed } = await supabase.storage
+              .from("event-photos")
+              .createSignedUrl(firstPath, 60 * 60 * 24); // 24h（LINE配信時に取得・キャッシュ）
+            photoUrl = signed?.signedUrl ?? null;
+          }
           await notifyBusinessReport({
             driverName,
             eventType: body.event_type,
@@ -46,6 +55,7 @@ export async function POST(request: Request) {
             lat: body.lat,
             lng: body.lng,
             items: body.items,
+            photoUrl,
           });
         }
         const violations = (result.close?.judgement.items ?? [])
