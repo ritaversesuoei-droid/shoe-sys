@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionContext } from "@/lib/auth";
 import { ComplianceSettings } from "@/components/admin/ComplianceSettings";
+import { BroadcastForm } from "@/components/admin/BroadcastForm";
+import { RichMenuButton } from "@/components/admin/RichMenuButton";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,8 @@ export default async function SettingsPage() {
         <Link href="/admin" className="text-sm text-blue-600">← ダッシュボード</Link>
       </header>
       <ComplianceSettings />
+      <BroadcastForm />
+      <RichMenuButton />
     </main>
   );
 }
