@@ -17,15 +17,14 @@ type SB = SupabaseClient<Database>;
  *   直近ウィンドウ（既定21日）だけを処理して1時間ごとの実行でも軽く保つ。
  *
  * 設定（環境変数, 未設定なら configured:false で何もしない）:
- *   MIRROR_SHEET_ID       … 勤怠ブックのスプレッドシートID（drivers/vehicles/客先/shift_log/event_log を含む）
- *   MIRROR_GID_DRIVERS    … drivers タブの gid
- *   MIRROR_GID_VEHICLES   … vehicles タブの gid
- *   MIRROR_GID_CUSTOMERS  … 客先マスタ タブの gid
- *   MIRROR_GID_SHIFTLOG   … shift_log タブの gid
- *   MIRROR_GID_EVENTLOG   … event_log タブの gid
+ *   MIRROR_SHEET_ID       … 勤怠ブックのスプレッドシートID（これだけでOK）
+ *                           既定タブ名 drivers/vehicles/客先マスタ/shift_log/event_log を
+ *                           シート名指定(gviz)で取得するため gid は不要。
  *   MIRROR_WINDOW_DAYS    … 直近何日ぶんを処理するか（既定 21）
+ *   （任意）MIRROR_NAME_<KEY> … タブ名が異なる場合の上書き（KEY=DRIVERS/VEHICLES/CUSTOMERS/SHIFTLOG/EVENTLOG）
+ *   （任意）MIRROR_GID_<KEY>  … gidで取得したい場合の上書き
  *   ※ 配車（運行データ/流れ表）は DISPATCH_SHEET_ID/GID（既存）を使い自動で一緒に取り込む。
- *   ※ シートは「リンクを知っている全員が閲覧可」で共有すること（CSVエクスポートで読む）。
+ *   ※ シートは「リンクを知っている全員が閲覧可」で共有すること（CSVで読む）。
  */
 export interface MirrorResult {
   configured: boolean;
@@ -44,8 +43,13 @@ export interface MirrorResult {
   note?: string;
 }
 
-function csvUrl(id: string, gid: string): string {
+/** gid指定のCSVエクスポート（gidが分かっている場合に使用）。 */
+function exportCsvUrl(id: string, gid: string): string {
   return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
+}
+/** シート名指定のCSV（gviz）。gid不要でタブ名だけで取得できる。 */
+function gvizCsvUrl(id: string, sheet: string): string {
+  return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}`;
 }
 
 async function fetchRows(url: string, label: string): Promise<Record<string, string>[]> {
@@ -53,10 +57,31 @@ async function fetchRows(url: string, label: string): Promise<Record<string, str
   if (!res.ok) throw new Error(`${label} の取得に失敗しました (HTTP ${res.status})`);
   const csv = await res.text();
   const head = csv.slice(0, 300);
-  if (head.trimStart().startsWith("<")) {
-    throw new Error(`${label} をCSVで取得できませんでした。共有設定を『リンクを知っている全員が閲覧可』にしてください。`);
+  if (head.trimStart().startsWith("<") || head.includes("google.visualization")) {
+    throw new Error(`${label} をCSVで取得できませんでした（共有設定/シート名を確認）。`);
   }
   return parseCsv(csv);
+}
+
+/**
+ * 勤怠ブックの各タブを取得。既定はシート名(gviz)で取得（gid不要＝シートIDだけで動く）。
+ *   MIRROR_GID_<KEY> があれば gid指定エクスポートを優先、MIRROR_NAME_<KEY> でタブ名も上書き可。
+ *   シートが無い/取得失敗は null（そのタブだけスキップし、全体は継続）。
+ */
+async function getSheetRows(
+  id: string,
+  key: string,
+  defaultName: string,
+): Promise<Record<string, string>[] | null> {
+  const gid = process.env[`MIRROR_GID_${key}`]?.trim();
+  const name = process.env[`MIRROR_NAME_${key}`]?.trim() || defaultName;
+  const url = gid ? exportCsvUrl(id, gid) : gvizCsvUrl(id, name);
+  try {
+    return await fetchRows(url, name);
+  } catch (e) {
+    console.warn(`[mirror] ${name} 取得スキップ: ${e instanceof Error ? e.message : e}`);
+    return null;
+  }
 }
 
 /** 直近ウィンドウ判定。日付が読めない行は落とさず通す（インポータ側で厳密判定）。 */
@@ -78,32 +103,30 @@ export async function mirrorFromSheets(sb: SB): Promise<MirrorResult> {
   const result: MirrorResult = { configured: true, windowDays, cutoff };
 
   if (id) {
-    const gid = (name: string) => process.env[`MIRROR_GID_${name}`]?.trim();
-    const gDrivers = gid("DRIVERS");
-    const gVehicles = gid("VEHICLES");
-    const gCustomers = gid("CUSTOMERS");
-    const gShift = gid("SHIFTLOG");
-    const gEvent = gid("EVENTLOG");
-
     // 1) マスタ（小さいので全件 upsert）
-    if (gDrivers) result.drivers = await importDrivers(sb, await fetchRows(csvUrl(id, gDrivers), "drivers"));
-    if (gVehicles) result.vehicles = await importVehicles(sb, await fetchRows(csvUrl(id, gVehicles), "vehicles"));
-    if (gCustomers) result.customers = await importCustomers(sb, await fetchRows(csvUrl(id, gCustomers), "客先マスタ"));
+    const dRows = await getSheetRows(id, "DRIVERS", "drivers");
+    if (dRows) result.drivers = await importDrivers(sb, dRows);
+    const vRows = await getSheetRows(id, "VEHICLES", "vehicles");
+    if (vRows) result.vehicles = await importVehicles(sb, vRows);
+    const cRows = await getSheetRows(id, "CUSTOMERS", "客先マスタ");
+    if (cRows) result.customers = await importCustomers(sb, cRows);
 
     const resolver = createDriverResolver(sb);
     await resolver.preload();
 
     // 2) shift_log → shifts（直近ウィンドウのみ・冪等）
-    if (gShift) {
-      const rows = (await fetchRows(csvUrl(id, gShift), "shift_log")).filter((r) => inWindow(r["開始日"], cutoff));
+    const sRows = await getSheetRows(id, "SHIFTLOG", "shift_log");
+    if (sRows) {
+      const rows = sRows.filter((r) => inWindow(r["開始日"], cutoff));
       const sr = await importShiftLog(sb, rows, resolver);
       result.shiftsInserted = sr.inserted;
       result.shiftsSkipped = sr.skipped;
     }
 
     // 3) event_log → events (+ 明細)（直近ウィンドウのみ・冪等）
-    if (gEvent) {
-      const rows = (await fetchRows(csvUrl(id, gEvent), "event_log")).filter((r) => inWindow(r["server_ts"], cutoff));
+    const eRows = await getSheetRows(id, "EVENTLOG", "event_log");
+    if (eRows) {
+      const rows = eRows.filter((r) => inWindow(r["server_ts"], cutoff));
       const ev = await importEventLog(sb, rows, resolver);
       result.events = ev.events;
       result.items = ev.items;
