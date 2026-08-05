@@ -24,6 +24,9 @@ export async function GET() {
     office_terminal: !!process.env.OFFICE_TERMINAL_TOKEN,
     geocoder: process.env.GEOCODER ?? "gsi",
     app_url: process.env.NEXT_PUBLIC_APP_URL ?? null,
+    // 並行運用ミラー設定の有無（値は出さず boolean のみ）
+    mirror_sheet: !!process.env.MIRROR_SHEET_ID,
+    cron_secret: !!process.env.CRON_SECRET,
   };
 
   let db = false;
