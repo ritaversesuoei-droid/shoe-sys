@@ -101,6 +101,7 @@ export async function mirrorFromSheets(sb: SB): Promise<MirrorResult> {
   }
 
   const result: MirrorResult = { configured: true, windowDays, cutoff };
+  let affectedDrivers: string[] = []; // 今回 新規勤務を入れたドライバー（この人だけ再計算）
 
   if (id) {
     // 1) マスタ（小さいので全件 upsert）
@@ -121,6 +122,7 @@ export async function mirrorFromSheets(sb: SB): Promise<MirrorResult> {
       const sr = await importShiftLog(sb, rows, resolver);
       result.shiftsInserted = sr.inserted;
       result.shiftsSkipped = sr.skipped;
+      affectedDrivers = sr.driverIds; // 新規勤務のあったドライバーだけ後で再計算
     }
 
     // 3) event_log → events (+ 明細)（直近ウィンドウのみ・冪等）
@@ -145,12 +147,13 @@ export async function mirrorFromSheets(sb: SB): Promise<MirrorResult> {
     }
   }
 
-  // 5) 指標・違反 再計算（直近に勤務のあるドライバーのみ＝差分で軽量）
-  const { data: recent } = await sb.from("shifts").select("driver_id").gte("work_date", cutoff);
-  const driverIds = [...new Set((recent ?? []).map((r) => r.driver_id).filter((v): v is string => !!v))];
-  if (driverIds.length) {
-    const m = await recomputeAllMetrics(sb, { driverIds });
+  // 5) 指標・違反 再計算（今回 新規勤務が入ったドライバーのみ＝差分で軽量）。
+  //    勤怠指標は shifts から算出するため、新規 shift が無ければ再計算不要（毎時実行を60s以内に保つ）。
+  if (affectedDrivers.length) {
+    const m = await recomputeAllMetrics(sb, { driverIds: affectedDrivers });
     result.recomputed = m.shifts;
+  } else {
+    result.recomputed = 0;
   }
 
   return result;

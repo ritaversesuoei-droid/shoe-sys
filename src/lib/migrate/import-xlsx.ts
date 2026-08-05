@@ -77,9 +77,10 @@ export async function importShiftLog(
   sb: SB,
   rows: Row[],
   resolver: ReturnType<typeof createDriverResolver>,
-): Promise<{ inserted: number; skipped: number }> {
+): Promise<{ inserted: number; skipped: number; driverIds: string[] }> {
   let inserted = 0;
   let skipped = 0;
+  const insertedDrivers = new Set<string>();
   for (const r of rows) {
     const name = cleanText(r["ドライバー名"]);
     const workDate = parseDateLoose(r["開始日"]);
@@ -125,8 +126,9 @@ export async function importShiftLog(
     });
     if (error) throw error;
     inserted += 1;
+    insertedDrivers.add(driverId);
   }
-  return { inserted, skipped };
+  return { inserted, skipped, driverIds: [...insertedDrivers] };
 }
 
 /**
