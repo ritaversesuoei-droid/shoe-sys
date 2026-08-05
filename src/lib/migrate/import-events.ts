@@ -40,6 +40,19 @@ export async function importEventLog(
   const { data: custs } = await sb.from("customers").select("id, name");
   for (const c of custs ?? []) custByName.set(cleanText(c.name), c.id);
 
+  // 冪等チェック用に既存 idempotency_key を一括プリロード（行ごとのSELECTを避け高速化）。
+  const existingKeys = new Set<string>();
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await sb
+      .from("events")
+      .select("idempotency_key")
+      .not("idempotency_key", "is", null)
+      .range(from, from + 999);
+    if (error) throw error;
+    for (const r of data ?? []) if (r.idempotency_key) existingKeys.add(r.idempotency_key);
+    if (!data || data.length < 1000) break;
+  }
+
   let events = 0;
   let items = 0;
   let skipped = 0;
@@ -54,9 +67,8 @@ export async function importEventLog(
       continue;
     }
 
-    // 冪等: 同一 event_id（idempotency_key）は再投入しない
-    const { data: dup } = await sb.from("events").select("id").eq("idempotency_key", eventId).limit(1).maybeSingle();
-    if (dup) {
+    // 冪等: 同一 event_id（idempotency_key）は再投入しない（プリロード済みSetで判定）
+    if (existingKeys.has(eventId)) {
       skipped += 1;
       continue;
     }
@@ -94,6 +106,7 @@ export async function importEventLog(
       .select("id")
       .single();
     if (error || !ins) throw error ?? new Error("event挿入失敗");
+    existingKeys.add(eventId); // 同一バッチ内の重複行も弾く
     events += 1;
 
     // 積込/荷卸は明細1件
