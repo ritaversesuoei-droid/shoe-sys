@@ -54,15 +54,18 @@ export async function importVehicles(sb: SB, rows: Row[]): Promise<number> {
   return payload.length;
 }
 
-/** 客先マスタ → customers（荷主名 / 屋号=荷主名 で F-22 照合に利用）。 */
+/** 客先マスタ → customers（客先名/荷主名 → name・屋号。住所/郵便番号があれば取り込む。F-22 照合に利用）。 */
 export async function importCustomers(sb: SB, rows: Row[]): Promise<number> {
   let inserted = 0;
   for (const r of rows) {
-    const name = cleanText(r["荷主名"]);
+    // 列名は現行ブックにより「客先名」または「荷主名」。customerName も許容。
+    const name = cleanText(r["客先名"] || r["荷主名"] || r["customerName"]);
     if (!name) continue;
     const { data: ex } = await sb.from("customers").select("id").eq("name", name).limit(1).maybeSingle();
     if (ex) continue;
-    const { error } = await sb.from("customers").insert({ name, yago: name });
+    const address = cleanText(r["住所"]) || null;
+    const postal = cleanText(r["郵便番号"]) || null;
+    const { error } = await sb.from("customers").insert({ name, yago: name, address, postal_code: postal });
     if (error) throw error;
     inserted += 1;
   }
