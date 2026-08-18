@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   // PDF生成系はバンドルせず実行時に解決（同梱バイナリ/ネイティブのため。Vercelで必須）
-  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core", "exceljs"],
   experimental: {
     // Server Actions のボディ上限（写真アップロードを考慮）
     serverActions: {

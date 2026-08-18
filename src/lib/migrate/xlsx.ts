@@ -40,14 +40,12 @@ export async function workbookSheets(file: string): Promise<string[]> {
   return wb.worksheets.map((w) => w.name);
 }
 
-/** 指定シートを「ヘッダ→値」のオブジェクト配列として読む（headerRow 行をヘッダとする）。 */
-export async function loadSheetObjects(
-  file: string,
+/** 読み込み済みワークブックの指定シートを「ヘッダ→値」オブジェクト配列にする（cellStrで日付をISO化）。 */
+export function sheetObjects(
+  wb: ExcelJS.Workbook,
   sheet: string,
   headerRow = 1,
-): Promise<Record<string, string>[]> {
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.readFile(file);
+): Record<string, string>[] {
   const ws = wb.getWorksheet(sheet);
   if (!ws) throw new Error(`シートが見つかりません: ${sheet}`);
 
@@ -70,4 +68,31 @@ export async function loadSheetObjects(
     if (any) out.push(o);
   }
   return out;
+}
+
+/** 指定シートを「ヘッダ→値」のオブジェクト配列として読む（headerRow 行をヘッダとする）。 */
+export async function loadSheetObjects(
+  file: string,
+  sheet: string,
+  headerRow = 1,
+): Promise<Record<string, string>[]> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(file);
+  return sheetObjects(wb, sheet, headerRow);
+}
+
+/**
+ * URL から xlsx を取得してワークブックを返す（Googleスプレッドシートの ?format=xlsx 用）。
+ * CSVと違い日付/時刻セルが Date として入るため、cellStr 経由で移行と同じISO文字列になる。
+ */
+export async function fetchWorkbook(url: string): Promise<ExcelJS.Workbook> {
+  const res = await fetch(url, { redirect: "follow", cache: "no-store" });
+  if (!res.ok) throw new Error(`ブックの取得に失敗しました (HTTP ${res.status})`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.subarray(0, 2).toString() !== "PK") {
+    throw new Error("xlsxを取得できませんでした。共有設定を『リンクを知っている全員が閲覧可』にしてください。");
+  }
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf as unknown as ArrayBuffer);
+  return wb;
 }
