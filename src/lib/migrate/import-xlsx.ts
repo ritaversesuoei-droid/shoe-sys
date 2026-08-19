@@ -81,6 +81,24 @@ export async function importShiftLog(
   let inserted = 0;
   let skipped = 0;
   const insertedDrivers = new Set<string>();
+
+  // 冪等判定用に既存 shift の (driver, work_date, clock_in) を一括プリロード（行毎SELECTを回避）。
+  // clock_in は tz 表現が揺れるため epoch(ms) をキーに使い、表現差を吸収する。
+  const existing = new Set<string>();
+  const shiftKey = (driverId: string, workDate: string, clockInIso: string) =>
+    `${driverId}|${workDate}|${new Date(clockInIso).getTime()}`;
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await sb
+      .from("shifts")
+      .select("driver_id, work_date, clock_in_at")
+      .range(from, from + 999);
+    if (error) throw error;
+    for (const s of data ?? []) {
+      if (s.clock_in_at) existing.add(shiftKey(s.driver_id, s.work_date, s.clock_in_at));
+    }
+    if (!data || data.length < 1000) break;
+  }
+
   for (const r of rows) {
     const name = cleanText(r["ドライバー名"]);
     const workDate = parseDateLoose(r["開始日"]);
@@ -92,15 +110,7 @@ export async function importShiftLog(
     const clockOut = toJstIso(r["確定退勤"]);
     const driverId = (await resolver.resolve(name, { affiliation: "昭栄運輸", create: true }))!;
 
-    const { data: dup } = await sb
-      .from("shifts")
-      .select("id")
-      .eq("driver_id", driverId)
-      .eq("work_date", workDate)
-      .eq("clock_in_at", clockIn)
-      .limit(1)
-      .maybeSingle();
-    if (dup) {
+    if (existing.has(shiftKey(driverId, workDate, clockIn))) {
       skipped += 1;
       continue;
     }
@@ -127,6 +137,7 @@ export async function importShiftLog(
     if (error) throw error;
     inserted += 1;
     insertedDrivers.add(driverId);
+    existing.add(shiftKey(driverId, workDate, clockIn));
   }
   return { inserted, skipped, driverIds: [...insertedDrivers] };
 }

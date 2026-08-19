@@ -40,7 +40,11 @@ export async function workbookSheets(file: string): Promise<string[]> {
   return wb.worksheets.map((w) => w.name);
 }
 
-/** 読み込み済みワークブックの指定シートを「ヘッダ→値」オブジェクト配列にする（cellStrで日付をISO化）。 */
+/**
+ * 読み込み済みワークブックの指定シートを「ヘッダ→値」オブジェクト配列にする（cellStrで日付をISO化）。
+ * 大きいシートでも速いよう eachRow/eachCell の逐次イテレータで走査する
+ * （getRow/getCell のランダムアクセスは1万行規模で極端に遅いため使わない）。
+ */
 export function sheetObjects(
   wb: ExcelJS.Workbook,
   sheet: string,
@@ -50,23 +54,26 @@ export function sheetObjects(
   if (!ws) throw new Error(`シートが見つかりません: ${sheet}`);
 
   const headers: string[] = [];
-  const hRow = ws.getRow(headerRow);
-  for (let c = 1; c <= ws.columnCount; c++) headers[c] = cellStr(hRow.getCell(c).value).trim();
-
   const out: Record<string, string>[] = [];
-  for (let r = headerRow + 1; r <= ws.rowCount; r++) {
-    const row = ws.getRow(r);
+  ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    if (rowNumber < headerRow) return;
+    if (rowNumber === headerRow) {
+      row.eachCell({ includeEmpty: true }, (cell, col) => {
+        headers[col] = cellStr(cell.value).trim();
+      });
+      return;
+    }
     const o: Record<string, string> = {};
     let any = false;
-    for (let c = 1; c <= ws.columnCount; c++) {
-      const h = headers[c];
-      if (!h) continue;
-      const val = cellStr(row.getCell(c).value).trim();
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      const h = headers[col];
+      if (!h) return;
+      const val = cellStr(cell.value).trim();
       o[h] = val;
       if (val) any = true;
-    }
+    });
     if (any) out.push(o);
-  }
+  });
   return out;
 }
 
