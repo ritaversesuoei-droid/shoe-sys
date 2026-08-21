@@ -119,6 +119,11 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
           </button>
         </div>
 
+        {/* 自分の配車（本人ぶんのみ・閲覧専用） */}
+        <button onClick={() => go("/driver/dispatch")} className={`${btn} mb-3 bg-[#0ea5e9]`}>
+          🚚 自分の配車を見る
+        </button>
+
         {/* 今日の履歴（トグル） */}
         <button onClick={toggleHist} className={`${btn} bg-[#6c757d]`}>
           {histOpen ? "✖ 履歴を閉じる" : "📊 今日の履歴を確認する"}
