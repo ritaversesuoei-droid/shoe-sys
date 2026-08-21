@@ -57,9 +57,9 @@ export default async function AdminHome() {
   const limit = usage.data?.limit_count ?? null;
 
   return (
-    <main className="mx-auto max-w-5xl p-6">
+    <main className="mx-auto max-w-5xl p-3 sm:p-6">
       <RealtimeRefresh />
-      <header className="mb-6 flex items-center justify-between">
+      <header className="mb-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">運行管理ダッシュボード</h1>
           <p className="text-sm text-slate-500">

@@ -14,7 +14,7 @@ export default async function SettingsPage() {
   if (ctx.role !== "admin") return <main className="p-6 text-red-600">管理者権限が必要です。</main>;
 
   return (
-    <main className="mx-auto max-w-3xl p-6">
+    <main className="mx-auto max-w-3xl p-3 sm:p-6">
       <header className="mb-5">
         <h1 className="text-2xl font-bold">設定（改善基準告示）</h1>
         <Link href="/admin" className="text-sm text-blue-600">← ダッシュボード</Link>

@@ -54,7 +54,7 @@ export default async function ReportsPage({
   const rows = reports ?? [];
 
   return (
-    <main className="mx-auto max-w-5xl p-6">
+    <main className="mx-auto max-w-5xl p-3 sm:p-6">
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">日報（閲覧・印刷）</h1>

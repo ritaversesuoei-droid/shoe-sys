@@ -79,7 +79,7 @@ export default async function DispatchPage({
   };
 
   return (
-    <main className="mx-auto max-w-7xl p-6">
+    <main className="mx-auto max-w-7xl p-3 sm:p-6">
       {/* 印刷時: ナビ非表示・A4横 */}
       <style>{`@media print { nav { display: none !important; } @page { size: A4 landscape; margin: 8mm; } main { padding: 0 !important; max-width: none !important; } }`}</style>
 
