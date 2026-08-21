@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { TimRow, TimEvent } from "@/lib/operations/tim-board";
+import type { TimRow, TimEvent, TimItem } from "@/lib/operations/tim-board";
 
 /** イベント種別 → 見た目（現行GAS T・I・M の配色を踏襲）。label=詳細用の正式名、short=一覧用。 */
 const TYPE_META: Record<string, { label: string; short: string; cls: string }> = {
@@ -31,21 +31,63 @@ function withUnit(v: string | null, unit: string): string {
   if (!v) return "";
   return /^[\d.]+$/.test(v.trim()) ? `${v}${unit}` : v;
 }
+/** 空/未入力は "0" として表示する（0なら0で見せる）。 */
+function num(v: string | null | undefined): string {
+  return v && v.trim() !== "" ? v : "0";
+}
 
-/** 一覧カード用の数量/重量/伝票サマリ（明細ごと）。 */
+/**
+ * 一覧カード用サマリ。積込＝数量/重量/伝票、荷卸＝受領書 を「0でも」必ず表示する。
+ * その他の種別は明細があれば簡易表示。
+ */
 function itemMetrics(e: TimEvent): string {
+  if (e.type === "loading") {
+    const its = e.items.length ? e.items : [null];
+    return its
+      .map((it) => `数${num(it?.quantity)} 重${withUnit(num(it?.weight), "kg")} 伝${withUnit(num(it?.slip_no), "枚")}`)
+      .join(" / ");
+  }
+  if (e.type === "unloading") {
+    const its = e.items.length ? e.items : [null];
+    return its.map((it) => `受領書${withUnit(num(it?.receipts), "枚")}`).join(" / ");
+  }
   return e.items
-    .map((it) =>
-      [
-        it.quantity && `数${it.quantity}`,
-        it.weight && `重${withUnit(it.weight, "kg")}`,
-        it.slip_no && `伝${withUnit(it.slip_no, "枚")}`,
-      ]
-        .filter(Boolean)
-        .join(" "),
-    )
+    .map((it) => [it.delivery_spot, it.shipper, it.quantity, it.weight, it.cargo_type].filter(Boolean).join(" "))
     .filter(Boolean)
     .join(" / ");
+}
+
+const EMPTY_ITEM: TimItem = {
+  shipper: null, delivery_spot: null, quantity: null, weight: null, cargo_type: null, receipts: null, slip_no: null,
+};
+/** 詳細ポップアップの明細1行（種別ごと・数量/受領書は0でも表示）。 */
+function detailItemSegs(e: TimEvent, it: TimItem): string {
+  if (e.type === "loading") {
+    return [
+      `【数量】 ${num(it.quantity)}`,
+      `【重量】 ${withUnit(num(it.weight), "kg")}`,
+      `【伝票】 ${withUnit(num(it.slip_no), "枚")}`,
+      it.delivery_spot && `【着地】 ${it.delivery_spot}`,
+      it.shipper && `【荷主】 ${it.shipper}`,
+      it.cargo_type && `【品種】 ${it.cargo_type}`,
+    ].filter(Boolean).join(" / ");
+  }
+  if (e.type === "unloading") {
+    return [
+      `【受領書】 ${withUnit(num(it.receipts), "枚")}`,
+      it.delivery_spot && `【完了】 ${it.delivery_spot}`,
+      it.cargo_type && `【品種】 ${it.cargo_type}`,
+    ].filter(Boolean).join(" / ");
+  }
+  return [
+    it.quantity && `【数量】 ${it.quantity}`,
+    it.weight && `【重量】 ${withUnit(it.weight, "kg")}`,
+    it.slip_no && `【伝票】 ${withUnit(it.slip_no, "枚")}`,
+    it.receipts && `【受領書】 ${withUnit(it.receipts, "枚")}`,
+    it.delivery_spot && `【着地】 ${it.delivery_spot}`,
+    it.shipper && `【荷主】 ${it.shipper}`,
+    it.cargo_type && `【品種】 ${it.cargo_type}`,
+  ].filter(Boolean).join(" / ");
 }
 
 /** 1打刻の地図URL（座標優先・無ければ住所検索）。 */
@@ -252,18 +294,16 @@ export function TimBoard({
               <div><b className="text-slate-500">【時間】</b> <span className="font-bold tabular-nums">{detail.ev.time}</span></div>
               <div><b className="text-slate-500">【場所】</b> <span className="break-words">{detail.ev.address || "（住所情報なし）"}</span></div>
               {detail.ev.customer && <div><b className="text-slate-500">【客先】</b> {detail.ev.customer}</div>}
-              {detail.ev.items.map((it, i) => {
-                const seg = [
-                  it.quantity && `【数量】 ${it.quantity}`,
-                  it.weight && `【重量】 ${withUnit(it.weight, "kg")}`,
-                  it.slip_no && `【伝票】 ${withUnit(it.slip_no, "枚")}`,
-                  it.receipts && `【受領書】 ${withUnit(it.receipts, "枚")}`,
-                  it.delivery_spot && `【着地】 ${it.delivery_spot}`,
-                  it.shipper && `【荷主】 ${it.shipper}`,
-                  it.cargo_type && `【品種】 ${it.cargo_type}`,
-                ].filter(Boolean).join(" / ");
+              {(detail.ev.items.length
+                ? detail.ev.items
+                : detail.ev.type === "loading" || detail.ev.type === "unloading"
+                  ? [EMPTY_ITEM]
+                  : []
+              ).map((it, i) => {
+                const seg = detailItemSegs(detail.ev, it);
                 return seg ? <div key={i} className="rounded bg-slate-50 px-2 py-1 text-sm font-medium text-slate-700">{seg}</div> : null;
               })}
+              {detail.ev.checks && <div><b className="text-slate-500">【点検】</b> {detail.ev.checks}</div>}
               {detail.ev.note && <div><b className="text-slate-500">【特記】</b> {detail.ev.note}</div>}
               {detail.ev.lat != null && detail.ev.lng != null && (
                 <div className="text-xs text-slate-400">座標 {detail.ev.lat.toFixed(6)}, {detail.ev.lng.toFixed(6)}</div>

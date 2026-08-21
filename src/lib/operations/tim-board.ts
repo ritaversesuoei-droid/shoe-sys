@@ -21,6 +21,7 @@ export interface TimEvent {
   type: EventType;
   address: string | null;
   customer: string | null;
+  checks: string | null; // 点検項目（荷卸: 荷物異常なし/受領印日付OK/…）
   note: string | null;
   lat: number | null;
   lng: number | null;
@@ -63,7 +64,7 @@ export async function getTimBoard(sb: SB, dateStr: string): Promise<TimRow[]> {
   const { data: events, error } = await sb
     .from("events")
     .select(
-      "id, driver_id, event_type, occurred_at, address, note, lat, lng, drivers(code, name, line_user_id), customers(name), event_items(shipper, delivery_spot, quantity, weight, cargo_type, receipts, slip_no), event_photos(storage_path, seq)",
+      "id, driver_id, event_type, occurred_at, address, note, checks, lat, lng, drivers(code, name, line_user_id), customers(name), event_items(shipper, delivery_spot, quantity, weight, cargo_type, receipts, slip_no), event_photos(storage_path, seq)",
     )
     .gte("occurred_at", start)
     .lt("occurred_at", end)
@@ -99,6 +100,7 @@ export async function getTimBoard(sb: SB, dateStr: string): Promise<TimRow[]> {
       type: e.event_type,
       address: e.address,
       customer: cust?.name ?? null,
+      checks: e.checks,
       note: e.note,
       lat: e.lat,
       lng: e.lng,
