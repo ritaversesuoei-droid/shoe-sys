@@ -147,7 +147,7 @@ export function LogiFlowBoard({
 
       <div className="overflow-x-auto rounded-lg border-2 border-black bg-white">
         {/* ヘッダ */}
-        <div className="grid min-w-[1100px] grid-cols-[130px_130px_1fr_200px] border-b-2 border-black bg-black text-center text-[10px] font-bold text-white">
+        <div className="grid min-w-[1100px] grid-cols-[130px_minmax(130px,max-content)_1fr_200px] border-b-2 border-black bg-black text-center text-[10px] font-bold text-white">
           <div className="border-r border-slate-600 p-2">DRIVER</div>
           <div className="border-r border-slate-600 p-2">AM（前日継続）</div>
           <div className="border-r border-slate-600 p-2">当日フロー（{mdw(date).text}）</div>
@@ -158,7 +158,7 @@ export function LogiFlowBoard({
           <p className="p-10 text-center text-slate-400">{date} の配車はありません</p>
         ) : (
           drivers.map((d) => (
-            <div key={d.key} className="grid min-w-[1100px] grid-cols-[130px_130px_1fr_200px] border-b-2 border-black">
+            <div key={d.key} className="grid min-w-[1100px] grid-cols-[130px_minmax(130px,max-content)_1fr_200px] border-b-2 border-black">
               {/* ドライバー情報 */}
               <div className="flex flex-col items-center justify-center border-r-2 border-black bg-slate-50 p-1 text-center">
                 <span className="text-[8px] text-slate-400">{d.belong}</span>
@@ -204,11 +204,11 @@ function Column({
   placeholder: string; grow?: boolean; dashed?: boolean; nextBg?: boolean;
 }) {
   const active = editing && drag && drag.driverKey === driver.key;
-  // AM（前日継続）は横スクロールにせず、複数件は縦に広げて全件表示する（見落とし防止）。
+  // AM（前日継続）は横スクロールにせず、複数件は横に並べて全件表示する（列幅が内容に合わせて広がる）。
   const isAm = col === "am";
   return (
     <div
-      className={`gap-1 border-r border-black p-1 ${isAm ? "flex flex-col" : "flex items-center overflow-x-auto"} ${nextBg ? "bg-slate-100" : ""} ${active ? "outline-dashed outline-2 outline-blue-400" : ""}`}
+      className={`flex items-center gap-1 border-r border-black p-1 ${isAm ? "" : "overflow-x-auto"} ${nextBg ? "bg-slate-100" : ""} ${active ? "outline-dashed outline-2 outline-blue-400" : ""}`}
       onDragOver={(e) => { if (active) e.preventDefault(); }}
       onDrop={(e) => { e.preventDefault(); onDropTo(driver, col, null); }}
     >
