@@ -27,12 +27,14 @@ export function LogiFlowBoard({
   totalJobs,
   prevDate,
   nextDate,
+  confirmed,
 }: {
   date: string;
   drivers: LFDriver[];
   totalJobs: number;
   prevDate: string;
   nextDate: string;
+  confirmed: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -110,22 +112,34 @@ export function LogiFlowBoard({
     <main className="min-h-dvh bg-slate-100 p-3">
       <style>{`@media print { nav{display:none!important;} .no-print{display:none!important;} @page{size:A4 landscape;margin:6mm;} main{padding:0!important;background:#fff!important;} }`}</style>
 
-      <div className="mb-2 flex flex-wrap items-center gap-3 no-print">
+      {/* タイトル帯: 確定でこの帯が赤くなる（配車表と同期） */}
+      <div className={`mb-2 flex flex-wrap items-center gap-3 rounded-lg px-3 py-1.5 no-print ${confirmed ? "bg-red-600 text-white" : "bg-white"}`}>
         <div>
           <span className="text-xl font-black tracking-widest">LOGI-FLOW NAVI</span>
-          <span className="ml-2 text-[10px] font-bold text-slate-400">Operations Management v1</span>
+          {confirmed && <span className="ml-2 rounded bg-white px-2 py-0.5 text-xs font-black text-red-600">確定</span>}
+          <span className={`ml-2 text-[10px] font-bold ${confirmed ? "text-red-100" : "text-slate-400"}`}>Operations Management v1</span>
         </div>
-        <Link href={`/admin/logiflow?date=${prevDate}`} className="rounded-lg border-2 border-slate-900 bg-white px-3 py-1 text-lg font-bold">◀</Link>
+        <Link href={`/admin/logiflow?date=${prevDate}`} className="rounded-lg border-2 border-slate-900 bg-white px-3 py-1 text-lg font-bold text-slate-900">◀</Link>
         <form method="GET" className="flex items-center gap-1">
-          <input type="date" name="date" defaultValue={date} className="rounded-lg border-2 border-slate-900 px-2 py-1 text-sm font-bold" />
+          <input type="date" name="date" defaultValue={date} className="rounded-lg border-2 border-slate-900 px-2 py-1 text-sm font-bold text-slate-900" />
           <button className="rounded-lg bg-slate-900 px-3 py-1 text-sm font-bold text-white">表示</button>
         </form>
-        <Link href={`/admin/logiflow?date=${nextDate}`} className="rounded-lg border-2 border-slate-900 bg-white px-3 py-1 text-lg font-bold">▶</Link>
+        <Link href={`/admin/logiflow?date=${nextDate}`} className="rounded-lg border-2 border-slate-900 bg-white px-3 py-1 text-lg font-bold text-slate-900">▶</Link>
         <span className="rounded-full bg-orange-500 px-3 py-1 text-sm font-black text-white">配車数 {totalJobs}</span>
-        <span className={`inline-flex items-center gap-1 text-xs ${live ? "text-green-600" : "text-slate-400"}`}>
+        <span className={`inline-flex items-center gap-1 text-xs ${confirmed ? "text-red-100" : live ? "text-green-600" : "text-slate-400"}`}>
           <span className={`h-2 w-2 rounded-full ${live ? "bg-green-500" : "bg-slate-300"}`} /> 自動反映
         </span>
         <div className="ml-auto flex items-center gap-2">
+          {/* 確定 / 確定解除：配車表のタイトル帯も赤/通常に切替 */}
+          <button
+            onClick={() => api("/api/admin/dispatch/confirm", "POST", { date, confirmed: !confirmed })}
+            disabled={busy}
+            className={`rounded-lg px-4 py-2 text-sm font-black shadow transition ${
+              confirmed ? "bg-white text-red-600 ring-2 ring-white" : "bg-red-600 text-white"
+            }`}
+          >
+            {confirmed ? "確定解除" : "確定"}
+          </button>
           <button
             onClick={() => setEditing((v) => !v)}
             className={`rounded-lg px-4 py-2 text-sm font-black shadow transition ${
@@ -134,7 +148,7 @@ export function LogiFlowBoard({
           >
             {editing ? "✅ 編集を終了" : "✏️ 編集"}
           </button>
-          <Link href="/admin" className="text-sm text-blue-600">← 管理</Link>
+          <Link href="/admin" className={`text-sm ${confirmed ? "text-white underline" : "text-blue-600"}`}>← 管理</Link>
           <button onClick={() => window.print()} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white">🖨️ A4印刷</button>
         </div>
       </div>

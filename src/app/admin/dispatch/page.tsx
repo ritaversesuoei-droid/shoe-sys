@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isDispatchConfirmed } from "@/lib/operations/dispatch-confirm";
 import { toWorkDate } from "@/lib/datekey";
 import { DispatchSyncButton } from "@/components/admin/DispatchSyncButton";
 import { MirrorButton } from "@/components/admin/MirrorButton";
@@ -17,7 +19,7 @@ export const dynamic = "force-dynamic";
 export default async function DispatchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ date?: string; driver?: string }>;
 }) {
   const ctx = await getSessionContext();
   if (!ctx) redirect("/admin/login");
@@ -39,17 +41,25 @@ export default async function DispatchPage({
     .limit(1)
     .maybeSingle();
 
-  const { date } = await searchParams;
+  const { date, driver } = await searchParams;
   const day = (date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null) ?? latest?.plan_date ?? toWorkDate(new Date());
 
   const { data: plans } = await supabase
     .from("dispatch_plans")
-    .select("id, plan_date, driver_name_raw, vehicle_no, shipper, delivery_spot, highway_instruction, is_subcontract, note, drivers(name)")
+    .select("id, plan_date, arrival_date, driver_name_raw, vehicle_no, shipper, origin_spot, delivery_spot, arrival_time, is_subcontract, sort_no, drivers(name)")
     .eq("plan_date", day)
     .order("is_subcontract", { ascending: true })
+    .order("sort_no", { ascending: true, nullsFirst: false })
     .order("driver_name_raw", { ascending: true });
 
-  const rows = plans ?? [];
+  const confirmed = await isDispatchConfirmed(createAdminClient(), day);
+
+  const nameOf = (r: { drivers: unknown; driver_name_raw: string | null }): string =>
+    (r.drivers as { name: string } | null)?.name ?? r.driver_name_raw ?? "（担当者未定）";
+  const allRows = plans ?? [];
+  // 担当者プルダウン用（当日の担当者一覧）
+  const driverNames = [...new Set(allRows.map(nameOf))].sort((a, b) => a.localeCompare(b, "ja"));
+  const rows = driver ? allRows.filter((r) => nameOf(r) === driver) : allRows;
   const own = rows.filter((r) => !r.is_subcontract).length;
   const sub = rows.length - own;
 
@@ -66,24 +76,40 @@ export default async function DispatchPage({
 
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div>
-          <h1 className="text-2xl font-bold">配車表（流れ表）</h1>
-          <Link href="/admin" className="text-sm text-blue-600">← ダッシュボード</Link>
+          {/* タイトル帯: 流れ表で「確定」するとここが赤くなる */}
+          <div className={`inline-flex items-center gap-2 rounded-lg px-3 py-1 ${confirmed ? "bg-red-600 text-white" : ""}`}>
+            <h1 className="text-2xl font-bold">配車表（流れ表）</h1>
+            {confirmed && <span className="rounded bg-white px-2 py-0.5 text-xs font-black text-red-600">確定</span>}
+          </div>
           <div className="mt-1 flex items-center gap-3">
-            <p className="text-xs text-slate-400">データ源: TROUD（流れ表シート）。取込は同期ボタンを押したときだけ・自動反映なし</p>
+            <Link href="/admin" className="text-sm text-blue-600">← ダッシュボード</Link>
+            <Link href={`/admin/logiflow?date=${day}`} className="text-sm text-cyan-700">🗺️ 流れ表（確定はこちら）</Link>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <MirrorButton />
           <DispatchSyncButton />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* 担当者プルダウン（個人の配車の流れを表示） */}
+          <form method="GET" className="flex items-center gap-1">
+            <input type="hidden" name="date" value={day} />
+            <select name="driver" defaultValue={driver ?? ""} className="rounded-lg border border-slate-300 px-3 py-3 text-base">
+              <option value="">担当者：全員</option>
+              {driverNames.map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <button type="submit" className="rounded-xl bg-slate-700 px-3 py-3 text-sm font-bold text-white">絞込</button>
+          </form>
           <PrintButton label="🖨️ A4印刷" />
-          <Link href={`/admin/dispatch?date=${shift(-1)}`} className="rounded-xl bg-slate-200 px-4 py-3 text-base font-bold text-slate-700 hover:bg-slate-300">◀ 前日</Link>
+          <Link href={`/admin/dispatch?date=${shift(-1)}${driver ? `&driver=${encodeURIComponent(driver)}` : ""}`} className="rounded-xl bg-slate-200 px-4 py-3 text-base font-bold text-slate-700 hover:bg-slate-300">◀ 前日</Link>
           <form method="GET" className="flex items-center gap-2">
+            {driver && <input type="hidden" name="driver" value={driver} />}
             <input type="date" name="date" defaultValue={day} min={earliest?.plan_date ?? undefined} max={latest?.plan_date ?? undefined} className="rounded-lg border border-slate-300 px-3 py-3 text-base" />
             <button type="submit" className="rounded-xl bg-slate-900 px-4 py-3 text-base font-bold text-white">表示</button>
           </form>
-          <Link href={`/admin/dispatch?date=${shift(1)}`} className="rounded-xl bg-slate-200 px-4 py-3 text-base font-bold text-slate-700 hover:bg-slate-300">翌日 ▶</Link>
+          <Link href={`/admin/dispatch?date=${shift(1)}${driver ? `&driver=${encodeURIComponent(driver)}` : ""}`} className="rounded-xl bg-slate-200 px-4 py-3 text-base font-bold text-slate-700 hover:bg-slate-300">翌日 ▶</Link>
         </div>
       </header>
 
@@ -108,10 +134,11 @@ export default async function DispatchPage({
           driver_name: (r.drivers as { name: string } | null)?.name ?? null,
           vehicle_no: r.vehicle_no,
           shipper: r.shipper,
+          origin_spot: r.origin_spot,
           delivery_spot: r.delivery_spot,
-          highway_instruction: r.highway_instruction,
+          arrival_date: r.arrival_date,
+          arrival_time: r.arrival_time,
           is_subcontract: r.is_subcontract,
-          note: r.note,
         }))}
       />
     </main>

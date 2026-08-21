@@ -237,9 +237,17 @@ function EditableRow({ row, checked, onToggle, focus }: { row: AttendanceRow; ch
           <div className="mt-1">{adjSel(outAdj, setOutAdj)}</div>
         </td>
         <td className="p-3"><input type="number" min={0} step={5} value={restMin} onChange={(e) => setRestMin(Number(e.target.value))} className={`${inputCls} w-20`} /></td>
-        <td className="p-3 text-right whitespace-nowrap font-mono">
-          <span className={row.warn ? "font-bold text-rose-600" : ""}>{hhmm(row.restraintMin)}</span> / {hhmm(row.laborMin)} / {row.nightMin ?? "—"}
-          {row.warn && <div className="mt-1 max-w-[14rem] text-right text-xs font-normal text-rose-600">{row.warn}</div>}
+        <td className="p-3 text-right font-mono">
+          <span className="whitespace-nowrap">
+            <span className={row.warn ? "font-bold text-rose-600" : ""}>{hhmm(row.restraintMin)}</span> / {hhmm(row.laborMin)} / {row.nightMin ?? "—"}
+          </span>
+          {row.warn && (
+            <div className="mt-1 ml-auto w-[15rem] max-w-full space-y-0.5 whitespace-normal break-words text-right text-xs font-normal font-sans leading-snug text-rose-600">
+              {row.warn.split(" / ").map((w, i) => (
+                <div key={i}>⚠ {w}</div>
+              ))}
+            </div>
+          )}
         </td>
         <td className="p-3 whitespace-nowrap">
           <select value={crewType} onChange={(e) => setCrewType(e.target.value as "single" | "double")} className="rounded-lg border border-slate-300 px-1 py-1.5 text-sm">
