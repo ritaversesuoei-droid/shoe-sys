@@ -42,15 +42,24 @@ export default async function DispatchPage({
     .maybeSingle();
 
   const { date, driver } = await searchParams;
-  const day = (date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null) ?? latest?.plan_date ?? toWorkDate(new Date());
+  const paramDay = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+  // 既定日は「今日」（流れ表と揃える＝確定の連動を分かりやすく）。今日に配車が無ければ最新日にフォールバック。
+  let day = paramDay ?? toWorkDate(new Date());
 
-  const { data: plans } = await supabase
-    .from("dispatch_plans")
-    .select("id, plan_date, arrival_date, driver_name_raw, vehicle_no, shipper, origin_spot, delivery_spot, arrival_time, is_subcontract, sort_no, drivers(name)")
-    .eq("plan_date", day)
-    .order("is_subcontract", { ascending: true })
-    .order("sort_no", { ascending: true, nullsFirst: false })
-    .order("driver_name_raw", { ascending: true });
+  const selectPlans = (d: string) =>
+    supabase
+      .from("dispatch_plans")
+      .select("id, plan_date, arrival_date, driver_name_raw, vehicle_no, shipper, origin_spot, delivery_spot, arrival_time, is_subcontract, sort_no, drivers(name)")
+      .eq("plan_date", d)
+      .order("is_subcontract", { ascending: true })
+      .order("sort_no", { ascending: true, nullsFirst: false })
+      .order("driver_name_raw", { ascending: true });
+
+  let { data: plans } = await selectPlans(day);
+  if (!paramDay && (plans?.length ?? 0) === 0 && latest?.plan_date && latest.plan_date !== day) {
+    day = latest.plan_date;
+    ({ data: plans } = await selectPlans(day));
+  }
 
   const confirmed = await isDispatchConfirmed(createAdminClient(), day);
 
