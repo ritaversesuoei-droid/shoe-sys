@@ -11,17 +11,17 @@ export interface DispatchRow {
   driver_name: string | null; // drivers 紐付け名（あれば優先表示）
   vehicle_no: string | null;
   shipper: string | null;
+  origin_spot: string | null;
   delivery_spot: string | null;
-  highway_instruction: string | null;
+  arrival_date: string | null;
+  arrival_time: string | null;
   is_subcontract: boolean;
-  note: string | null;
 }
 
 /**
  * 配車表（/admin/dispatch）の編集可能テーブル。
- *   右上「✏️ 編集」で編集モードに切替。編集は dispatch_plans に直接書き込むため、
- *   同じテーブルを見る「流れ表（/admin/logiflow）」にも即反映される。TROUD には送らない。
- *   DBの変更は Realtime＋20秒ポーリングで自動反映（編集中は一時停止して入力を保護）。
+ *   列＝荷主名 / 積地 / 着地 / 着日 / 時間 / 車番 / 所属 / 担当者。
+ *   編集は dispatch_plans に直接書き込むため、流れ表(/admin/logiflow)にも即反映される。
  */
 export function DispatchTable({ date, rows }: { date: string; rows: DispatchRow[] }) {
   const router = useRouter();
@@ -84,7 +84,7 @@ export function DispatchTable({ date, rows }: { date: string; rows: DispatchRow[
   const own = rows.filter((r) => !r.is_subcontract).length;
   const sub = rows.length - own;
 
-  const cellInput =
+  const cell =
     "w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-emerald-500 focus:outline focus:outline-1 focus:outline-emerald-500";
 
   return (
@@ -115,7 +115,7 @@ export function DispatchTable({ date, rows }: { date: string; rows: DispatchRow[
       {editing && (
         <p className="mb-3 rounded-lg border-2 border-green-500 bg-green-50 p-2 text-sm font-bold text-green-800 print:hidden">
           ✏️ 編集モード：各セルをその場で修正（入力欄から離れると保存）。所属バッジで自社／子車を切替、×で行削除。
-          ここでの修正は<strong>流れ表にも反映</strong>されます（TROUDには送りません）。
+          ここでの修正は<strong>流れ表にも反映</strong>されます。
         </p>
       )}
       {err && <p className="mb-3 rounded bg-red-50 p-2 text-sm text-red-600 print:hidden">{err}</p>}
@@ -130,19 +130,68 @@ export function DispatchTable({ date, rows }: { date: string; rows: DispatchRow[
           <table className="w-full text-sm print:text-[10px]">
             <thead className="bg-slate-50 text-left">
               <tr>
+                <th className="p-2 whitespace-nowrap">荷主名</th>
+                <th className="p-2 whitespace-nowrap">積地</th>
+                <th className="p-2 whitespace-nowrap">着地</th>
+                <th className="p-2 whitespace-nowrap">着日</th>
+                <th className="p-2 whitespace-nowrap">時間</th>
+                <th className="p-2 whitespace-nowrap">車番</th>
                 <th className="p-2 whitespace-nowrap">所属</th>
-                <th className="p-2 whitespace-nowrap">ドライバー</th>
-                <th className="p-2 whitespace-nowrap">車両</th>
-                <th className="p-2 whitespace-nowrap">荷主</th>
-                <th className="p-2">着荷地</th>
-                <th className="p-2 whitespace-nowrap">高速</th>
-                <th className="p-2">備考</th>
+                <th className="p-2 whitespace-nowrap">担当者</th>
                 {editing && <th className="p-2 print:hidden"></th>}
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="border-t align-top">
+                  {/* 荷主名 */}
+                  <td className="p-3 whitespace-nowrap">
+                    {editing ? (
+                      <input defaultValue={r.shipper ?? ""} onBlur={(e) => patch(r.id, "shipper", e.target.value)} className={`${cell} min-w-[8rem]`} />
+                    ) : (
+                      (r.shipper ?? "—")
+                    )}
+                  </td>
+                  {/* 積地 */}
+                  <td className="p-3">
+                    {editing ? (
+                      <input defaultValue={r.origin_spot ?? ""} onBlur={(e) => patch(r.id, "origin_spot", e.target.value)} className={`${cell} min-w-[10rem]`} />
+                    ) : (
+                      (r.origin_spot ?? "—")
+                    )}
+                  </td>
+                  {/* 着地 */}
+                  <td className="p-3">
+                    {editing ? (
+                      <input defaultValue={r.delivery_spot ?? ""} onBlur={(e) => patch(r.id, "delivery_spot", e.target.value)} className={`${cell} min-w-[10rem]`} />
+                    ) : (
+                      (r.delivery_spot ?? "—")
+                    )}
+                  </td>
+                  {/* 着日 */}
+                  <td className="p-3 whitespace-nowrap">
+                    {editing ? (
+                      <input type="date" defaultValue={r.arrival_date ?? ""} onBlur={(e) => patch(r.id, "arrival_date", e.target.value || null)} className={`${cell} w-36`} />
+                    ) : (
+                      (r.arrival_date ?? "—")
+                    )}
+                  </td>
+                  {/* 時間 */}
+                  <td className="p-3 whitespace-nowrap">
+                    {editing ? (
+                      <input defaultValue={r.arrival_time ?? ""} placeholder="8:00" onBlur={(e) => patch(r.id, "arrival_time", e.target.value)} className={`${cell} w-24`} />
+                    ) : (
+                      (r.arrival_time ?? "—")
+                    )}
+                  </td>
+                  {/* 車番 */}
+                  <td className="p-3 whitespace-nowrap">
+                    {editing ? (
+                      <input defaultValue={r.vehicle_no ?? ""} onBlur={(e) => patch(r.id, "vehicle_no", e.target.value)} className={`${cell} w-24`} />
+                    ) : (
+                      (r.vehicle_no ?? "—")
+                    )}
+                  </td>
                   {/* 所属 */}
                   <td className="p-3 whitespace-nowrap">
                     {editing ? (
@@ -159,54 +208,12 @@ export function DispatchTable({ date, rows }: { date: string; rows: DispatchRow[
                       </span>
                     )}
                   </td>
-                  {/* ドライバー */}
+                  {/* 担当者 */}
                   <td className="p-3 whitespace-nowrap font-bold">
                     {editing ? (
-                      <input defaultValue={r.driver_name_raw ?? r.driver_name ?? ""} onBlur={(e) => patch(r.id, "driver_name_raw", e.target.value)} className={`${cellInput} min-w-[8rem]`} />
+                      <input defaultValue={r.driver_name_raw ?? r.driver_name ?? ""} onBlur={(e) => patch(r.id, "driver_name_raw", e.target.value)} className={`${cell} min-w-[8rem]`} />
                     ) : (
                       (r.driver_name ?? r.driver_name_raw ?? "—")
-                    )}
-                  </td>
-                  {/* 車両 */}
-                  <td className="p-3 whitespace-nowrap">
-                    {editing ? (
-                      <input defaultValue={r.vehicle_no ?? ""} onBlur={(e) => patch(r.id, "vehicle_no", e.target.value)} className={`${cellInput} w-24`} />
-                    ) : (
-                      (r.vehicle_no ?? "—")
-                    )}
-                  </td>
-                  {/* 荷主 */}
-                  <td className="p-3 whitespace-nowrap">
-                    {editing ? (
-                      <input defaultValue={r.shipper ?? ""} onBlur={(e) => patch(r.id, "shipper", e.target.value)} className={`${cellInput} min-w-[8rem]`} />
-                    ) : (
-                      (r.shipper ?? "—")
-                    )}
-                  </td>
-                  {/* 着荷地 */}
-                  <td className="p-3">
-                    {editing ? (
-                      <input defaultValue={r.delivery_spot ?? ""} onBlur={(e) => patch(r.id, "delivery_spot", e.target.value)} className={`${cellInput} min-w-[12rem]`} />
-                    ) : (
-                      (r.delivery_spot ?? "—")
-                    )}
-                  </td>
-                  {/* 高速 */}
-                  <td className="p-3 whitespace-nowrap">
-                    {editing ? (
-                      <input defaultValue={r.highway_instruction ?? ""} onBlur={(e) => patch(r.id, "highway_instruction", e.target.value)} className={`${cellInput} w-28`} />
-                    ) : r.highway_instruction ? (
-                      `🛣️ ${r.highway_instruction}`
-                    ) : (
-                      ""
-                    )}
-                  </td>
-                  {/* 備考 */}
-                  <td className="p-3 text-xs text-slate-500 max-w-[20rem]">
-                    {editing ? (
-                      <input defaultValue={r.note ?? ""} onBlur={(e) => patch(r.id, "note", e.target.value)} className={`${cellInput} min-w-[10rem] text-sm`} />
-                    ) : (
-                      (r.note ?? "")
                     )}
                   </td>
                   {/* 削除 */}
@@ -224,9 +231,7 @@ export function DispatchTable({ date, rows }: { date: string; rows: DispatchRow[
 
       <p className="mt-3 text-xs text-slate-400 print:hidden">
         全{rows.length}件（自社{own} / 子車{sub}）
-        {editing
-          ? "　編集内容は流れ表にも反映されます。TROUDからの取込は上部の同期ボタンを押したときだけ行われます。"
-          : "　編集するには右上の「✏️ 編集」を押してください。"}
+        {editing ? "　編集内容は流れ表にも反映されます。" : "　編集するには右上の「✏️ 編集」を押してください。"}
       </p>
     </div>
   );

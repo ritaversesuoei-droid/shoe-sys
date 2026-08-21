@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessionContext } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getLogiFlowBoard } from "@/lib/operations/logiflow";
+import { isDispatchConfirmed } from "@/lib/operations/dispatch-confirm";
 import { toWorkDate } from "@/lib/datekey";
 import { LogiFlowBoard } from "@/components/admin/LogiFlowBoard";
 
@@ -24,7 +25,10 @@ export default async function LogiFlowPage({
   const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : toWorkDate(new Date());
 
   const admin = createAdminClient();
-  const board = await getLogiFlowBoard(admin, day);
+  const [board, confirmed] = await Promise.all([
+    getLogiFlowBoard(admin, day),
+    isDispatchConfirmed(admin, day),
+  ]);
 
   const shift = (n: number): string => {
     const d = new Date(`${day}T00:00:00Z`);
@@ -39,6 +43,7 @@ export default async function LogiFlowPage({
       totalJobs={board.totalJobs}
       prevDate={shift(-1)}
       nextDate={shift(1)}
+      confirmed={confirmed}
     />
   );
 }
