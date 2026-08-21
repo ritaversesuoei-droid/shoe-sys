@@ -23,7 +23,7 @@ export interface DispatchRow {
  *   列＝荷主名 / 積地 / 着地 / 着日 / 時間 / 車番 / 所属 / 担当者。
  *   編集は dispatch_plans に直接書き込むため、流れ表(/admin/logiflow)にも即反映される。
  */
-export function DispatchTable({ date, rows }: { date: string; rows: DispatchRow[] }) {
+export function DispatchTable({ date, rows, confirmed }: { date: string; rows: DispatchRow[]; confirmed: boolean }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -128,7 +128,8 @@ export function DispatchTable({ date, rows }: { date: string; rows: DispatchRow[
       ) : (
         <div className="overflow-x-auto rounded-lg border print:overflow-visible print:border-0">
           <table className="w-full text-sm print:text-[10px]">
-            <thead className="bg-slate-50 text-left">
+            {/* 確定でヘッダ（項目タイトル）行を赤に */}
+            <thead className={`text-left ${confirmed ? "bg-red-600 text-white" : "bg-slate-50"}`}>
               <tr>
                 <th className="p-2 whitespace-nowrap">荷主名</th>
                 <th className="p-2 whitespace-nowrap">積地</th>

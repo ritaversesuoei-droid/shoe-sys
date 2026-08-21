@@ -137,6 +137,7 @@ export default async function DispatchPage({
 
       <DispatchTable
         date={day}
+        confirmed={confirmed}
         rows={rows.map((r) => ({
           id: r.id,
           driver_name_raw: r.driver_name_raw,

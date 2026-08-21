@@ -9,8 +9,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // スマホで管理画面の表を拡大して読めるようにズームを許可（ドライバー画面は driver/layout で無効化）
+  maximumScale: 5,
+  userScalable: true,
   themeColor: "#0f172a",
 };
 
