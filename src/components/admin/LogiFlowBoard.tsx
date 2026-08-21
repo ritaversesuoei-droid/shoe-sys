@@ -204,17 +204,20 @@ function Column({
   placeholder: string; grow?: boolean; dashed?: boolean; nextBg?: boolean;
 }) {
   const active = editing && drag && drag.driverKey === driver.key;
+  // AM（前日継続）は横スクロールにせず、複数件は縦に広げて全件表示する（見落とし防止）。
+  const isAm = col === "am";
   return (
     <div
-      className={`flex items-center gap-1 overflow-x-auto border-r border-black p-1 ${grow ? "" : ""} ${nextBg ? "bg-slate-100" : ""} ${active ? "outline-dashed outline-2 outline-blue-400" : ""}`}
+      className={`gap-1 border-r border-black p-1 ${isAm ? "flex flex-col" : "flex items-center overflow-x-auto"} ${nextBg ? "bg-slate-100" : ""} ${active ? "outline-dashed outline-2 outline-blue-400" : ""}`}
       onDragOver={(e) => { if (active) e.preventDefault(); }}
       onDrop={(e) => { e.preventDefault(); onDropTo(driver, col, null); }}
     >
       {jobs.length === 0 ? (
         <div className={`flex h-[92px] w-[150px] flex-col items-center justify-center rounded border-2 ${dashed ? "border-dashed" : "border-solid"} border-slate-300 text-[10px] font-bold text-slate-400`}>{placeholder}</div>
       ) : (
-        jobs.map((j) => (
+        jobs.map((j, i) => (
           <JobBox key={j.id} job={j} driverVehicle={driver.vehicle} col={col} editing={editing}
+            redText={isAm && i > 0}
             onDragStart={() => setDrag({ id: j.id, driverKey: driver.key, col })}
             onDropBefore={() => onDropTo(driver, col, j.id)}
             patch={patch} del={del} openModal={openModal} />
@@ -225,9 +228,9 @@ function Column({
 }
 
 function JobBox({
-  job, driverVehicle, col, editing, onDragStart, onDropBefore, patch, del, openModal,
+  job, driverVehicle, col, editing, redText, onDragStart, onDropBefore, patch, del, openModal,
 }: {
-  job: LFJob; driverVehicle: string | null; col: ColKind; editing: boolean;
+  job: LFJob; driverVehicle: string | null; col: ColKind; editing: boolean; redText?: boolean;
   onDragStart: () => void; onDropBefore: () => void;
   patch: (id: string, field: string, value: string) => void; del: (id: string) => void; openModal: (j: LFJob) => void;
 }) {
@@ -236,27 +239,29 @@ function JobBox({
   const dt = mdw(job.arrivalDate);
   const ro = !editing;
   const focusCls = editing ? "focus:bg-yellow-50 focus:outline focus:outline-1" : "";
+  // AMの2件目は赤文字＋赤枠で強調（見落とし・忘れ防止）
+  const spotCls = redText ? "text-red-600" : "";
   return (
     <div
       draggable={editing}
       onDragStart={editing ? onDragStart : undefined}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.stopPropagation(); e.preventDefault(); onDropBefore(); }}
-      className={`relative flex h-[92px] ${w} shrink-0 flex-col justify-between rounded border ${diff ? "border-[2.5px] border-black bg-slate-100" : "border-black bg-white"} p-1 ${editing ? "cursor-grab" : "cursor-default"}`}
+      className={`relative flex h-[92px] ${w} shrink-0 flex-col justify-between rounded border p-1 ${editing ? "cursor-grab" : "cursor-default"} ${redText ? "border-[2.5px] border-red-500 bg-red-50" : diff ? "border-[2.5px] border-black bg-slate-100" : "border-black bg-white"}`}
     >
       {editing && (
         <span onClick={() => del(job.id)} className="absolute right-0.5 top-0 cursor-pointer text-xs text-slate-300 hover:text-red-500 no-print">×</span>
       )}
       <div className={`flex items-center justify-between text-[7px] ${editing ? "cursor-pointer" : ""}`} onClick={() => editing && openModal(job)}>
-        <span className={`font-bold ${dt.cls}`}>{dt.text}</span>
+        <span className={`font-bold ${redText ? "text-red-600" : dt.cls}`}>{redText ? "▲2件目 " : ""}{dt.text}</span>
         {diff && <span className="text-red-600">!車:{job.vehicleNo}</span>}
       </div>
       <div className="flex flex-1 items-start justify-between gap-0.5">
         <textarea defaultValue={job.originSpot ?? ""} readOnly={ro} onBlur={ro ? undefined : (e) => patch(job.id, "origin_spot", e.target.value)}
-          className={`h-8 w-[46%] resize-none break-all border-none bg-transparent p-0 text-[9px] font-bold leading-tight ${focusCls}`} />
-        <span className="mt-1 text-[7px] font-bold">→</span>
+          className={`h-8 w-[46%] resize-none break-all border-none bg-transparent p-0 text-[9px] font-bold leading-tight ${spotCls} ${focusCls}`} />
+        <span className={`mt-1 text-[7px] font-bold ${spotCls}`}>→</span>
         <textarea defaultValue={job.destSpot ?? ""} readOnly={ro} onBlur={ro ? undefined : (e) => patch(job.id, "delivery_spot", e.target.value)}
-          className={`h-8 w-[46%] resize-none break-all border-none bg-transparent p-0 text-[9px] font-bold leading-tight ${focusCls}`} />
+          className={`h-8 w-[46%] resize-none break-all border-none bg-transparent p-0 text-[9px] font-bold leading-tight ${spotCls} ${focusCls}`} />
       </div>
       <div>
         <input defaultValue={job.arrivalTime ?? ""} readOnly={ro} placeholder="到着指定" onBlur={ro ? undefined : (e) => patch(job.id, "arrival_time", e.target.value)}

@@ -25,14 +25,18 @@ export default async function TimPage({
 
   // 管理者専用ページ。非公開バケット(event-photos)の署名URL発行のため service_role で取得。
   const supabase = createAdminClient();
-  const [rows, usage] = await Promise.all([
+  const [rows, usage, lineSetting] = await Promise.all([
     getTimBoard(supabase, day),
     supabase
       .from("line_usage")
-      .select("sent_count, limit_count")
+      .select("sent_count")
       .eq("month_key", to_month_key(new Date(`${day}T00:00:00+09:00`)))
       .maybeSingle(),
+    // 月次上限は app_settings('line').monthly_limit（管理画面で設定・月ごとにカウントはリセット）
+    supabase.from("app_settings").select("value").eq("key", "line").maybeSingle(),
   ]);
+  const monthlyLimit =
+    (lineSetting.data?.value as { monthly_limit?: number } | null)?.monthly_limit ?? null;
 
   const shiftDay = (n: number): string => {
     const d = new Date(`${day}T00:00:00Z`);
@@ -47,7 +51,7 @@ export default async function TimPage({
       prevDay={shiftDay(-1)}
       nextDay={shiftDay(1)}
       lineSent={usage.data?.sent_count ?? 0}
-      lineLimit={usage.data?.limit_count ?? null}
+      lineLimit={monthlyLimit}
     />
   );
 }
