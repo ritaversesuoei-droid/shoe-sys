@@ -4,6 +4,7 @@ import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { to_month_key } from "@/lib/datekey";
 import AttendanceTable, { type AttendanceRow } from "@/components/admin/AttendanceTable";
+import { WritebackButton } from "@/components/admin/WritebackButton";
 
 export const dynamic = "force-dynamic";
 
@@ -90,16 +91,19 @@ export default async function AttendancePage({
           <Link href="/admin" className="text-sm text-blue-600">← ダッシュボード</Link>
           <Link href={`/admin/monthly?month=${monthKey}`} className="ml-3 text-sm text-blue-600">月次集計 →</Link>
         </div>
-        <form method="GET" className="flex items-center gap-2">
-          <input type="month" name="month" defaultValue={monthInput} className="rounded-lg border border-slate-300 px-3 py-2" />
-          <select name="driver" defaultValue={driver ?? ""} className="rounded-lg border border-slate-300 px-3 py-2">
-            <option value="">全ドライバー</option>
-            {(drivers ?? []).map((d) => (
-              <option key={d.id} value={d.id}>{d.code} {d.name}</option>
-            ))}
-          </select>
-          <button type="submit" className="rounded-lg bg-slate-900 px-4 py-2 text-white">表示</button>
-        </form>
+        <div className="flex flex-wrap items-center gap-2">
+          <form method="GET" className="flex items-center gap-2">
+            <input type="month" name="month" defaultValue={monthInput} className="rounded-lg border border-slate-300 px-3 py-2" />
+            <select name="driver" defaultValue={driver ?? ""} className="rounded-lg border border-slate-300 px-3 py-2">
+              <option value="">全ドライバー</option>
+              {(drivers ?? []).map((d) => (
+                <option key={d.id} value={d.id}>{d.code} {d.name}</option>
+              ))}
+            </select>
+            <button type="submit" className="rounded-lg bg-slate-900 px-4 py-2 text-white">表示</button>
+          </form>
+          <WritebackButton endpoint="/api/admin/attendance/writeback" body={{ month: monthKey }} label="📤 シートへ反映" />
+        </div>
       </header>
 
       <div className="mb-4 flex gap-2">

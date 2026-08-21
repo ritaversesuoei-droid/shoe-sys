@@ -7,6 +7,7 @@ import { isDispatchConfirmed } from "@/lib/operations/dispatch-confirm";
 import { toWorkDate } from "@/lib/datekey";
 import { DispatchSyncButton } from "@/components/admin/DispatchSyncButton";
 import { MirrorButton } from "@/components/admin/MirrorButton";
+import { WritebackButton } from "@/components/admin/WritebackButton";
 import { PrintButton } from "@/components/admin/PrintButton";
 import { DispatchTable } from "@/components/admin/DispatchTable";
 
@@ -95,9 +96,10 @@ export default async function DispatchPage({
             <Link href={`/admin/logiflow?date=${day}`} className="text-sm text-cyan-700">🗺️ 流れ表（確定はこちら）</Link>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <MirrorButton />
           <DispatchSyncButton />
+          <WritebackButton endpoint="/api/admin/dispatch/writeback" body={{ date: day }} label="📤 シートへ反映" />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* 担当者プルダウン（個人の配車の流れを表示） */}
