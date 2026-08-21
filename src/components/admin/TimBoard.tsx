@@ -60,6 +60,17 @@ function itemMetrics(e: TimEvent): string {
 const EMPTY_ITEM: TimItem = {
   shipper: null, delivery_spot: null, quantity: null, weight: null, cargo_type: null, receipts: null, slip_no: null,
 };
+
+/** 一覧カードの見出し（場所）。荷卸は住所ではなく「完了」対象（delivery_spot）を表示する。 */
+function placeFor(e: TimEvent): string {
+  if (e.type === "unloading") {
+    const dests = e.items.map((it) => it.delivery_spot).filter(Boolean).join(" / ");
+    if (dests) return `完了: ${dests}`;
+    if (e.note) return e.note.replace(/^【?完了[:：]\s*/, "完了: ").replace(/】$/, ""); // 【完了: ○○】→ 完了: ○○
+    return e.address || "";
+  }
+  return e.customer || e.address || "";
+}
 /** 詳細ポップアップの明細1行（種別ごと・数量/受領書は0でも表示）。 */
 function detailItemSegs(e: TimEvent, it: TimItem): string {
   if (e.type === "loading") {
@@ -112,7 +123,7 @@ function EventsStrip({ events, name, onOpen }: { events: TimEvent[]; name: strin
         ) : (
           events.map((e) => {
             const m = meta(e.type);
-            const place = e.customer || e.address || "";
+            const place = placeFor(e);
             const metricsStr = itemMetrics(e);
             return (
               <button
