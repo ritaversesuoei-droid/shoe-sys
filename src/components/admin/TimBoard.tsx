@@ -208,7 +208,7 @@ export function TimBoard({
   const overLimit = lineLimit != null && lineSent >= lineLimit;
 
   return (
-    <main className="mx-auto max-w-7xl p-4">
+    <main className="mx-auto max-w-7xl p-2 sm:p-4">
       {/* ヘッダ（現行 T・I・M 風・ポップ） */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-4 border-slate-900 bg-yellow-300 p-3 shadow-[4px_4px_0_0_#0f172a]">
         <div className="flex items-center gap-3">

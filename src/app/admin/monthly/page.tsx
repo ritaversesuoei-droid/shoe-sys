@@ -71,8 +71,8 @@ export default async function MonthlyPage({
   const overrides = (ovRow?.value as Record<string, DayClass>) ?? {};
 
   return (
-    <main className="mx-auto max-w-6xl p-6">
-      <header className="mb-5 flex items-center justify-between">
+    <main className="mx-auto max-w-6xl p-3 sm:p-6">
+      <header className="mb-5 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">月次集計</h1>
           <Link href="/admin" className="text-sm text-blue-600">← ダッシュボード</Link>

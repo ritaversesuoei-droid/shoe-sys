@@ -82,7 +82,7 @@ export default async function PhotosPage({
   const typeLabel = TYPES.find((t) => t.v === type)?.l ?? "すべての種別";
 
   return (
-    <main className="mx-auto max-w-5xl p-6">
+    <main className="mx-auto max-w-5xl p-3 sm:p-6">
       <header className="mb-4">
         <h1 className="text-2xl font-bold">写真（ドライバー別・期間・種別で検索）</h1>
         <Link href="/admin" className="text-sm text-blue-600">← ダッシュボード</Link>
