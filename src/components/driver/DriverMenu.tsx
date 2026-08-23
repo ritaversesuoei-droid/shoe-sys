@@ -46,18 +46,27 @@ function hhmm(iso: string): string {
   return `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 }
 
-function itemDetail(e: Ev): string {
-  const segs: string[] = [];
-  for (const it of e.event_items ?? []) {
-    if (e.event_type === "loading") {
-      const s = [it.quantity && `📦数:${it.quantity}`, it.weight && `⚖重:${it.weight}`, it.slip_no && `📄伝:${it.slip_no}`].filter(Boolean).join(" / ");
-      if (s) segs.push(s);
-    } else if (e.event_type === "unloading") {
-      const s = [it.receipts && `📄受:${it.receipts}`, it.cargo_type && `品:${it.cargo_type}`].filter(Boolean).join(" / ");
-      if (s) segs.push(s);
-    }
+/** 履歴の明細行（積込=重量/伝票、荷卸=受領書。枚数は赤字で強調）。 */
+function renderDetail(e: Ev) {
+  if (e.event_type === "loading") {
+    const its = e.event_items && e.event_items.length ? e.event_items : [{}];
+    return its.map((it, idx) => (
+      <div key={idx} className="mt-1 text-sm text-slate-600">
+        {it.quantity ? <>📦数:{it.quantity} / </> : null}
+        ⚖重:{it.weight || "0"} / 📄伝:<span className="font-bold text-red-600">{it.slip_no || "0"}枚</span>
+      </div>
+    ));
   }
-  return segs.join(" / ");
+  if (e.event_type === "unloading") {
+    const its = e.event_items && e.event_items.length ? e.event_items : [{}];
+    return its.map((it, idx) => (
+      <div key={idx} className="mt-1 text-sm text-slate-600">
+        ✅ 受領書: <span className="font-bold text-red-600">{it.receipts || "0"}枚</span>
+        {it.cargo_type ? <> / 品:{it.cargo_type}</> : null}
+      </div>
+    ));
+  }
+  return null;
 }
 
 // 実機の配色（スクショ準拠）
@@ -129,26 +138,23 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
           {histOpen ? "✖ 履歴を閉じる" : "📊 今日の履歴を確認する"}
         </button>
         {histOpen && (
-          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-1">
             {histLoading ? (
               <p className="py-4 text-center text-sm text-slate-400">読み込み中...</p>
             ) : !events || events.length === 0 ? (
               <p className="py-4 text-center text-sm text-slate-400">本日の打刻はまだありません</p>
             ) : (
               <ol>
-                {events.map((e, i) => {
-                  const detail = itemDetail(e);
-                  return (
-                    <li key={e.id} className={`py-2 ${i > 0 ? "border-t border-dashed border-slate-300" : ""}`}>
-                      <div className="flex items-baseline justify-between">
-                        <span className="font-bold text-slate-800">{HIST_LABEL[e.event_type] ?? e.event_type}</span>
-                        <span className="font-mono text-slate-500">{hhmm(e.occurred_at)}</span>
-                      </div>
-                      {e.address && <div className="mt-0.5 text-xs text-slate-500">📍 {e.address}</div>}
-                      {detail && <div className="text-xs text-slate-500">{detail}</div>}
-                    </li>
-                  );
-                })}
+                {events.map((e, i) => (
+                  <li key={e.id} className={`py-3 ${i > 0 ? "border-t border-dashed border-slate-300" : ""}`}>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-xl font-black text-slate-800">{HIST_LABEL[e.event_type] ?? e.event_type}</span>
+                      <span className="text-lg font-black tabular-nums text-slate-700">{hhmm(e.occurred_at)}</span>
+                    </div>
+                    {e.address && <div className="mt-1 text-sm text-slate-600">📍 {e.address}</div>}
+                    {renderDetail(e)}
+                  </li>
+                ))}
               </ol>
             )}
           </div>
