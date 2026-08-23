@@ -70,9 +70,9 @@ function renderDetail(e: Ev) {
 }
 
 // 実機の配色（スクショ準拠）
-const MENU: { key: string; label: string; bg: string; dialog?: "departure" | "clock_out"; href?: string }[] = [
+const MENU: { key: string; label: string; bg: string; dialog?: "departure" | "clock_out" | "arrival"; href?: string }[] = [
   { key: "departure", label: "☀️ 出勤報告", bg: "#4285f4", dialog: "departure" },
-  { key: "arrival", label: "📍 到着報告", bg: "#4caf50", href: "/driver/punch/arrival" },
+  { key: "arrival", label: "📍 到着報告", bg: "#4caf50", dialog: "arrival" },
   { key: "loading", label: "📦 積込完了(詳細)", bg: "#3d9aa5", href: "/driver/punch/loading" },
   { key: "unloading", label: "🏭 荷卸完了(詳細)", bg: "#6320ee", href: "/driver/punch/unloading" },
   { key: "clock_out", label: "🌙 退勤報告", bg: "#d9534f", dialog: "clock_out" },
@@ -81,11 +81,63 @@ const MENU: { key: string; label: string; bg: string; dialog?: "departure" | "cl
 
 export function DriverMenu({ name, showRest }: { name: string; showRest: boolean }) {
   const router = useRouter();
-  const [dialog, setDialog] = useState<null | "departure" | "clock_out">(null);
+  const [dialog, setDialog] = useState<null | "departure" | "clock_out" | "arrival">(null);
   const [histOpen, setHistOpen] = useState(false);
   const [events, setEvents] = useState<Ev[] | null>(null);
   const [histLoading, setHistLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  // 到着報告（その場ポップで直接送信）
+  const [arrCoords, setArrCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [arrSubmitting, setArrSubmitting] = useState(false);
+  const [arrErr, setArrErr] = useState<string | null>(null);
+  const [arrDone, setArrDone] = useState(false);
+
+  function openDialog(d: "departure" | "clock_out" | "arrival") {
+    setDialog(d);
+    if (d === "arrival") {
+      setArrCoords(null);
+      setArrErr(null);
+      setArrDone(false);
+      if (typeof navigator !== "undefined" && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (p) => setArrCoords({ lat: p.coords.latitude, lng: p.coords.longitude }),
+          () => {},
+          { enableHighAccuracy: true, timeout: 8000 },
+        );
+      }
+    }
+  }
+  function closeDialog() {
+    setDialog(null);
+    setArrErr(null);
+    setArrDone(false);
+  }
+  async function submitArrival() {
+    setArrSubmitting(true);
+    setArrErr(null);
+    try {
+      const res = await fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idempotency_key: crypto.randomUUID(),
+          event_type: "arrival",
+          occurred_at: new Date().toISOString(),
+          lat: arrCoords?.lat,
+          lng: arrCoords?.lng,
+        }),
+      });
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error ?? "送信に失敗しました");
+      setArrDone(true);
+      setEvents(null); // 履歴は次回開いたとき再取得
+      router.refresh();
+    } catch (e) {
+      setArrErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setArrSubmitting(false);
+    }
+  }
 
   async function toggleHist() {
     const next = !histOpen;
@@ -165,7 +217,7 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
           {MENU.map((m) => (
             <button
               key={m.key}
-              onClick={() => (m.dialog ? setDialog(m.dialog) : go(m.href!))}
+              onClick={() => (m.dialog ? openDialog(m.dialog) : go(m.href!))}
               className={btn}
               style={{ backgroundColor: m.bg }}
             >
@@ -180,32 +232,56 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
         </div>
       </div>
 
-      {/* 出勤/退勤 選択ダイアログ（消し込み） */}
+      {/* 報告ダイアログ（出勤/退勤=選択、到着=その場で直接送信） */}
       {dialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDialog(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeDialog}>
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto mb-3 flex h-20 w-20 items-center justify-center rounded-full border-4 border-teal-300 text-5xl font-bold text-teal-400">
-              ?
+              {arrDone ? "✓" : "?"}
             </div>
-            <h2 className="text-2xl font-bold text-slate-800">{dialog === "departure" ? "出勤報告" : "退勤報告"}</h2>
-            <p className="mt-1 text-slate-500">どちらの報告ですか？</p>
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
-              <button
-                onClick={() => go(dialog === "departure" ? "/driver/punch/departure" : "/driver/punch/clock_out")}
-                className="rounded-lg bg-blue-500 px-4 py-2.5 font-bold text-white"
-              >
-                {dialog === "departure" ? "通常出勤" : "通常退勤"}
-              </button>
-              <button
-                onClick={() => go(dialog === "departure" ? "/driver/punch/leg_departure" : "/driver/punch/long_rest")}
-                className="rounded-lg bg-amber-400 px-4 py-2.5 font-bold text-white"
-              >
-                {dialog === "departure" ? "長距離再出発" : "長距離休憩"}
-              </button>
-              <button onClick={() => setDialog(null)} className="rounded-lg bg-slate-500 px-4 py-2.5 font-bold text-white">
-                戻る
-              </button>
-            </div>
+            <h2 className="text-2xl font-bold text-slate-800">
+              {dialog === "arrival" ? "到着報告" : dialog === "departure" ? "出勤報告" : "退勤報告"}
+            </h2>
+
+            {dialog === "arrival" ? (
+              arrDone ? (
+                <>
+                  <p className="mt-2 text-lg font-bold text-green-600">送信しました</p>
+                  <button onClick={closeDialog} className="mt-5 rounded-lg bg-slate-900 px-6 py-2.5 font-bold text-white">閉じる</button>
+                </>
+              ) : (
+                <>
+                  <p className="mt-1 text-slate-500">送信しますか？</p>
+                  <p className="mt-2 text-xs text-slate-400">位置情報: {arrCoords ? "✓ 取得済み" : "取得中…（無くても送信できます）"}</p>
+                  {arrErr && <p className="mt-2 rounded bg-red-50 p-2 text-sm text-red-600">{arrErr}</p>}
+                  <div className="mt-5 flex justify-center gap-2">
+                    <button onClick={submitArrival} disabled={arrSubmitting} className="rounded-lg bg-indigo-400 px-6 py-2.5 font-bold text-white disabled:opacity-50">
+                      {arrSubmitting ? "送信中…" : "送信"}
+                    </button>
+                    <button onClick={closeDialog} className="rounded-lg bg-slate-500 px-6 py-2.5 font-bold text-white">戻る</button>
+                  </div>
+                </>
+              )
+            ) : (
+              <>
+                <p className="mt-1 text-slate-500">どちらの報告ですか？</p>
+                <div className="mt-5 flex flex-wrap justify-center gap-2">
+                  <button
+                    onClick={() => go(dialog === "departure" ? "/driver/punch/departure" : "/driver/punch/clock_out")}
+                    className="rounded-lg bg-blue-500 px-4 py-2.5 font-bold text-white"
+                  >
+                    {dialog === "departure" ? "通常出勤" : "通常退勤"}
+                  </button>
+                  <button
+                    onClick={() => go(dialog === "departure" ? "/driver/punch/leg_departure" : "/driver/punch/long_rest")}
+                    className="rounded-lg bg-amber-400 px-4 py-2.5 font-bold text-white"
+                  >
+                    {dialog === "departure" ? "長距離再出発" : "長距離休憩"}
+                  </button>
+                  <button onClick={closeDialog} className="rounded-lg bg-slate-500 px-4 py-2.5 font-bold text-white">戻る</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
