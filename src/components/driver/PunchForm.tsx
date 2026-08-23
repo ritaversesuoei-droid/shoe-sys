@@ -71,7 +71,6 @@ export function PunchForm({
   const mode: "confirm" | "photo" | "detail" | "unload" =
     type === "unloading" ? "unload" : cfg.items ? "detail" : cfg.alcohol ? "photo" : "confirm";
 
-  const [address, setAddress] = useState("");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geoState, setGeoState] = useState<"idle" | "ok" | "error">("idle");
   const [note, setNote] = useState("");
@@ -201,7 +200,7 @@ export function PunchForm({
         event_type: type,
         occurred_at: new Date().toISOString(),
         vehicle_no: vehicleNo || undefined,
-        address: mode === "detail" ? address || undefined : undefined,
+        address: undefined, // 住所はサーバー側で緯度経度から自動補完（F-22）
         lat: coords?.lat,
         lng: coords?.lng,
         // 長距離（写真モード）は撮影＝アルコールチェック実施とみなす
@@ -263,10 +262,27 @@ export function PunchForm({
   return (
     <main className="mx-auto max-w-md p-4">
       <header className="mb-4 flex items-center gap-2">
-        <Link href="/driver" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-bold text-slate-600 active:scale-95">← 戻る</Link>
-        <h1 className="text-xl font-bold">{cfg.label}</h1>
-        {driverName && (
-          <span className="ml-auto rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">{driverName}</span>
+        {mode === "detail" ? (
+          <>
+            <h1 className="text-2xl font-black text-slate-800">{cfg.label}詳細</h1>
+            {items.length < 3 && (
+              <button
+                type="button"
+                onClick={() => setItems((p) => [...p, {}])}
+                className="ml-auto rounded-lg bg-blue-600 px-3 py-2 text-sm font-bold text-white active:scale-95"
+              >
+                ＋ 複数処理
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <Link href="/driver" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-bold text-slate-600 active:scale-95">← 戻る</Link>
+            <h1 className="text-xl font-bold">{cfg.label}</h1>
+            {driverName && (
+              <span className="ml-auto rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">{driverName}</span>
+            )}
+          </>
         )}
       </header>
 
@@ -364,131 +380,102 @@ export function PunchForm({
         </div>
       )}
 
-      {/* ── 詳細（積込・荷卸）── */}
+      {/* ── 積込完了 詳細（現行GAS「積込完了詳細」再現）── */}
       {mode === "detail" && (
         <div className="flex flex-col gap-4">
-          <label className="block">
-            <span className="text-sm text-slate-600">場所（任意）</span>
-            <input
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="現在地の住所など"
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-            />
-          </label>
-
-          <p className="text-xs text-slate-400">位置情報: {geoText}</p>
-
-          <div className="flex flex-col gap-3">
-            <span className="text-sm font-medium text-slate-700">
-              {cfg.items === "load" ? "積込明細" : "荷卸明細"}（最大3件）
-            </span>
-
-            {/* 今日の予定業務を確認（タップで荷主・着荷地を転記） */}
-            {cfg.items === "load" && (
-              <div>
-                <button type="button" onClick={loadPlans} className="w-full rounded-lg border border-blue-300 bg-blue-50 py-2 text-sm font-bold text-blue-700">
-                  📋 今日の予定業務を確認
-                </button>
-                {plansOpen && (
-                  <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-slate-200">
-                    {plansLoading ? (
-                      <div className="p-3 text-center text-sm text-slate-400">読み込み中...</div>
-                    ) : !plans || plans.length === 0 ? (
-                      <div className="p-3 text-center text-sm text-slate-400">本日の予定は見つかりませんでした</div>
-                    ) : (
-                      plans.map((p, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => applyPlan(p)}
-                          className="block w-full border-b border-slate-100 p-3 text-left last:border-b-0 hover:bg-blue-50"
-                        >
-                          <div className="text-xs font-bold text-slate-400">件数 {i + 1}{p.vehicle_no ? ` ・ 車番 ${p.vehicle_no}` : ""}</div>
-                          <div className="mt-0.5 text-sm font-medium text-slate-800">{p.shipper || "（荷主未定）"}</div>
-                          <div className="text-xs text-slate-500">→ {p.delivery_spot || "（着荷地未定）"}</div>
-                        </button>
-                      ))
-                    )}
-                  </div>
+          {/* 今日の予定業務を確認（タップで荷主・着荷地を転記） */}
+          <div>
+            <button type="button" onClick={loadPlans} className="w-full rounded-xl border-2 border-blue-300 bg-white py-3 text-base font-bold text-blue-600 active:scale-[0.99]">
+              📋 今日の予定業務を確認
+            </button>
+            {plansOpen && (
+              <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-slate-200">
+                {plansLoading ? (
+                  <div className="p-3 text-center text-sm text-slate-400">読み込み中...</div>
+                ) : !plans || plans.length === 0 ? (
+                  <div className="p-3 text-center text-sm text-slate-400">本日の予定は見つかりませんでした</div>
+                ) : (
+                  plans.map((p, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => applyPlan(p)}
+                      className="block w-full border-b border-slate-100 p-3 text-left last:border-b-0 hover:bg-blue-50"
+                    >
+                      <div className="text-xs font-bold text-slate-400">件数 {i + 1}{p.vehicle_no ? ` ・ 車番 ${p.vehicle_no}` : ""}</div>
+                      <div className="mt-0.5 text-sm font-medium text-slate-800">{p.shipper || "（荷主未定）"}</div>
+                      <div className="text-xs text-slate-500">→ {p.delivery_spot || "（着荷地未定）"}</div>
+                    </button>
+                  ))
                 )}
               </div>
             )}
+          </div>
 
-            {items.map((it, i) => (
-              <div key={i} className="rounded-lg border border-slate-200 p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs text-slate-400">{i + 1}件目</span>
-                  {/* 1件目は必須なので削除ボタンを出さない（2件目以降のみ） */}
-                  {i > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setItems((p) => p.filter((_, idx) => idx !== i))}
-                      className="rounded px-2 py-0.5 text-xs font-bold text-red-500 hover:bg-red-50"
-                    >
-                      🗑 削除
-                    </button>
-                  )}
-                </div>
-                {cfg.items === "load" ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <input placeholder="荷主" value={it.shipper ?? ""} onChange={(e) => updateItem(i, { shipper: e.target.value })} className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <input placeholder="着荷地" value={it.delivery_spot ?? ""} onChange={(e) => updateItem(i, { delivery_spot: e.target.value })} className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <TenkeyInput placeholder="数量" value={it.quantity ?? ""} onChange={(v) => updateItem(i, { quantity: v })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <TenkeyInput placeholder="重量" value={it.weight ?? ""} onChange={(v) => updateItem(i, { weight: v })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <TenkeyInput placeholder="伝票" value={it.slip_no ?? ""} onChange={(v) => updateItem(i, { slip_no: v })} className="col-span-2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    <input placeholder="品種確認" value={it.cargo_type ?? ""} onChange={(e) => updateItem(i, { cargo_type: e.target.value })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <TenkeyInput placeholder="受領書枚数" value={it.receipts ?? ""} onChange={(v) => updateItem(i, { receipts: v })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                  </div>
+          <hr className="border-slate-200" />
+
+          {/* 明細カード（1件目～最大3件） */}
+          {items.map((it, i) => (
+            <div key={i} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm font-bold text-slate-700">{i + 1}件目：詳細入力　荷主名</span>
+                {/* 1件目は必須なので削除ボタンを出さない（2件目以降のみ） */}
+                {i > 0 && (
+                  <button type="button" onClick={() => setItems((p) => p.filter((_, idx) => idx !== i))} className="rounded px-2 py-0.5 text-xs font-bold text-red-500 hover:bg-red-50">
+                    🗑 削除
+                  </button>
                 )}
+              </div>
+              <input placeholder="荷主名（自動転記可）" value={it.shipper ?? ""} onChange={(e) => updateItem(i, { shipper: e.target.value })} className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
+              <div className="mb-1 mt-3 text-sm font-bold text-slate-700">着荷地名</div>
+              <input placeholder="例：〇〇センター" value={it.delivery_spot ?? ""} onChange={(e) => updateItem(i, { delivery_spot: e.target.value })} className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div>
+                  <div className="mb-1 text-sm font-bold text-slate-700">数量</div>
+                  <TenkeyInput value={it.quantity ?? ""} onChange={(v) => updateItem(i, { quantity: v })} className="w-full rounded-lg border border-slate-300 px-2 py-2.5 text-base" />
+                </div>
+                <div>
+                  <div className="mb-1 text-sm font-bold text-slate-700">重量</div>
+                  <TenkeyInput value={it.weight ?? ""} onChange={(v) => updateItem(i, { weight: v })} className="w-full rounded-lg border border-slate-300 px-2 py-2.5 text-base" />
+                </div>
+                <div>
+                  <div className="mb-1 text-sm font-bold text-slate-700">伝票</div>
+                  <TenkeyInput value={it.slip_no ?? ""} onChange={(v) => updateItem(i, { slip_no: v })} className="w-full rounded-lg border border-slate-300 px-2 py-2.5 text-base" />
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* 備考 */}
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="積込時の備考（任意）" className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
+
+          {/* 写真（カメラ／ライブラリー・複数可） */}
+          <div className="flex flex-wrap items-center gap-2">
+            {previews.map((src, i) => (
+              <div key={i} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt={`写真${i + 1}`} className="h-20 w-20 rounded-lg border border-slate-300 object-cover" />
+                <button onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))} aria-label="削除" className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-sm text-white">×</button>
               </div>
             ))}
-            {items.length < 3 && (
-              <button onClick={() => setItems((p) => [...p, {}])} className="rounded-lg border border-dashed border-slate-400 py-2 text-sm text-slate-500">
-                ＋ 明細を追加
-              </button>
+            {photos.length < MAX_PHOTOS && (
+              <>
+                <button type="button" onClick={() => cameraInputRef.current?.click()} className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-slate-300 text-xs font-medium text-slate-500">
+                  <span className="text-2xl leading-none">📷</span>カメラ
+                </button>
+                <button type="button" onClick={() => libraryInputRef.current?.click()} className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-slate-300 text-xs font-medium text-slate-500">
+                  <span className="text-2xl leading-none">🖼</span>ライブラリー
+                </button>
+              </>
             )}
           </div>
-
-          <div className="block">
-            <span className="text-sm text-slate-600">写真（荷姿 等・任意／複数可）</span>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {previews.map((src, i) => (
-                <div key={i} className="relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt={`写真${i + 1}`} className="h-20 w-20 rounded-lg border border-slate-300 object-cover" />
-                  <button onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))} aria-label="削除" className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-sm text-white">×</button>
-                </div>
-              ))}
-              {photos.length < MAX_PHOTOS && (
-                <>
-                  <button type="button" onClick={() => cameraInputRef.current?.click()} className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-slate-300 text-xs font-medium text-slate-500">
-                    <span className="text-2xl leading-none">📷</span>
-                    カメラ
-                  </button>
-                  <button type="button" onClick={() => libraryInputRef.current?.click()} className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-slate-300 text-xs font-medium text-slate-500">
-                    <span className="text-2xl leading-none">🖼</span>
-                    ライブラリー
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          <label className="block">
-            <span className="text-sm text-slate-600">特記（任意）</span>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
-          </label>
 
           {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
 
-          <button onClick={submit} disabled={submitting} className="rounded-xl bg-slate-900 px-4 py-4 text-lg font-bold text-white disabled:opacity-50">
-            {submitting ? "送信中..." : `${cfg.label} を記録`}
+          <button onClick={submit} disabled={submitting} className="rounded-2xl bg-[#3d9aa5] px-4 py-5 text-xl font-bold text-white active:scale-[0.99] disabled:opacity-50">
+            {submitting ? "送信中..." : "この内容で送信"}
           </button>
-          <Link href="/driver" className="rounded-xl border-2 border-slate-300 px-4 py-3 text-center text-base font-bold text-slate-600 active:scale-[0.99]">← 戻る</Link>
+          <Link href="/driver" className="text-center text-base font-bold text-blue-600 underline">戻る</Link>
         </div>
       )}
 
