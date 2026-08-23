@@ -49,5 +49,7 @@ docs/*.pdf
 
 # テスト依頼資料（認証情報を含むため非コミット）
 docs/test-guide.md
+# ドライバーアカウント一覧（パスワードを含むため非コミット）
+driver-accounts.xlsx
 .vercel
 .env*
