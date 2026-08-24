@@ -15,10 +15,19 @@ export async function findCustomerName(
   address: string,
 ): Promise<{ customerId: string; name: string } | null> {
   if (!address) return null;
-  const { data: customers, error } = await sb
-    .from("customers")
-    .select("id, name, address, yago");
-  if (error || !customers) return null;
+  // 全件ページング取得（1000行上限で客先が取りこぼされ推定漏れになるのを防ぐ）
+  const customers: { id: string; name: string; address: string | null; yago: string | null }[] = [];
+  for (let fromRow = 0; ; fromRow += 1000) {
+    const { data, error } = await sb
+      .from("customers")
+      .select("id, name, address, yago")
+      .order("id")
+      .range(fromRow, fromRow + 999);
+    if (error) return null;
+    if (!data || !data.length) break;
+    customers.push(...data);
+    if (data.length < 1000) break;
+  }
 
   // 1) 屋号一致
   for (const c of customers) {

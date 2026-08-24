@@ -42,16 +42,26 @@ function statusOf(eventType: string | null): BoardStatus {
  * 稼働中(active)/休息(rest)/終業(done) を判定し、稼働→休息→終業→の順で並べる。
  */
 export async function getTodayBoard(sb: SB, date: string): Promise<BoardEntry[]> {
-  const { data, error } = await sb
-    .from("events")
-    .select("driver_id, event_type, occurred_at, vehicle_no, address, drivers(code, name)")
-    .gte("occurred_at", `${date}T00:00:00+09:00`)
-    .lte("occurred_at", `${date}T23:59:59+09:00`)
-    .order("occurred_at", { ascending: true });
-  if (error) throw error;
+  // 1000行上限で「最新の打刻」が欠落しないよう全件ページング取得（昇順=最後が最終状態）。
+  type Row = { driver_id: string; event_type: string; occurred_at: string; vehicle_no: string | null; address: string | null; drivers: unknown };
+  const data: Row[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data: page, error } = await sb
+      .from("events")
+      .select("driver_id, event_type, occurred_at, vehicle_no, address, drivers(code, name)")
+      .gte("occurred_at", `${date}T00:00:00+09:00`)
+      .lte("occurred_at", `${date}T23:59:59+09:00`)
+      .order("occurred_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, from + 999);
+    if (error) throw error;
+    if (!page || !page.length) break;
+    data.push(...(page as unknown as Row[]));
+    if (page.length < 1000) break;
+  }
 
   const byDriver = new Map<string, BoardEntry>();
-  for (const e of data ?? []) {
+  for (const e of data) {
     const driver = e.drivers as { code: string; name: string } | null;
     const cur = byDriver.get(e.driver_id);
     if (!cur) {

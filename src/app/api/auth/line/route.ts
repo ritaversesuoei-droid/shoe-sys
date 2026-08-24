@@ -70,7 +70,8 @@ export async function POST(request: Request) {
         user_metadata: { line_user_id: verified.sub, driver_id: driver.id },
       });
       if (createErr || !created.user) {
-        return fail(`ユーザー作成に失敗: ${createErr?.message ?? "unknown"}`, 500);
+        console.error("[auth/line] createUser失敗:", createErr?.message);
+        return fail("認証処理に失敗しました", 500);
       }
       const { error: profErr } = await admin.from("profiles").insert({
         id: created.user.id,
@@ -78,7 +79,10 @@ export async function POST(request: Request) {
         driver_id: driver.id,
         display_name: driver.name,
       });
-      if (profErr) return fail(profErr.message, 500);
+      if (profErr) {
+        console.error("[auth/line] profiles作成失敗:", profErr.message);
+        return fail("認証処理に失敗しました", 500);
+      }
     }
 
     // (4) サーバー側サインイン → セッション cookie 確立
@@ -87,7 +91,10 @@ export async function POST(request: Request) {
       email,
       password,
     });
-    if (signInErr) return fail(`サインイン失敗: ${signInErr.message}`, 500);
+    if (signInErr) {
+      console.error("[auth/line] signIn失敗:", signInErr.message);
+      return fail("認証処理に失敗しました", 500);
+    }
 
     return ok({ driverId: driver.id, name: driver.name });
   });
