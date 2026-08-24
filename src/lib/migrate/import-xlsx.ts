@@ -91,6 +91,7 @@ export async function importShiftLog(
     const { data, error } = await sb
       .from("shifts")
       .select("driver_id, work_date, clock_in_at")
+      .order("id", { ascending: true }) // 安定ソート必須（無いとページ境界で取りこぼし→重複INSERT）
       .range(from, from + 999);
     if (error) throw error;
     for (const s of data ?? []) {

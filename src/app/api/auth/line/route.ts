@@ -30,7 +30,8 @@ export async function POST(request: Request) {
   return handle(async () => {
     const env = getServerEnv();
     if (!env.LINE_LOGIN_CHANNEL_ID) {
-      return fail("LINE_LOGIN_CHANNEL_ID が未設定です", 500);
+      // LINEログイン未設定は「未提供(503)」を返す（500=内部エラーにしない・監視の誤検知回避）
+      return fail("LINEログインは未設定です（ID/パスワードでログインしてください）", 503);
     }
     const { id_token } = lineLoginSchema.parse(await request.json());
 
