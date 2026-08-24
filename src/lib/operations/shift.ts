@@ -124,17 +124,23 @@ async function persistShiftMetrics(
     config,
   );
 
-  // 拘束14h超の「週2回まで」判定（仕様書6.3）。同一週(Mon-Sun)の自分以外の超過回数。
+  // 拘束14h超の「週2回まで」判定（仕様書6.3）。同一週(日曜起算)で「自分より前(時系列)」の超過回数を数える。
+  //   自分以外(neq id)だと、後発の超過も数えてしまい、先発勤務の再計算時に警告→違反へ過大判定される。
+  //   clock_in_at で時系列に前だけを数えることで、各勤務の「何回目」が再計算しても安定する。
   const week = weekRange(shift.work_date);
-  const { count } = await sb
-    .from("shifts")
-    .select("id", { count: "exact", head: true })
-    .eq("driver_id", shift.driver_id)
-    .gte("work_date", week.start)
-    .lte("work_date", week.end)
-    .neq("id", shift.id)
-    .not("clock_out_at", "is", null)
-    .gt("restraint_min", config.daily_restraint.extended_threshold_min);
+  let count = 0;
+  if (shift.clock_in_at) {
+    const res = await sb
+      .from("shifts")
+      .select("id", { count: "exact", head: true })
+      .eq("driver_id", shift.driver_id)
+      .gte("work_date", week.start)
+      .lte("work_date", week.end)
+      .lt("clock_in_at", shift.clock_in_at)
+      .not("clock_out_at", "is", null)
+      .gt("restraint_min", config.daily_restraint.extended_threshold_min);
+    count = res.count ?? 0;
+  }
 
   // 改善基準告示の特例（該当勤務のみ・要社労士確認）を作業区分から適用
   const workMode: ShiftWorkMode = {

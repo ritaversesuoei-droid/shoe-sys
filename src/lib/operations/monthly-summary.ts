@@ -105,14 +105,19 @@ export async function getMonthlySummary(
   const { data: shifts, error } = await q;
   if (error) throw error;
 
-  // 違反件数（compliance_alerts）
-  let aq = sb.from("compliance_alerts").select("driver_id").eq("month_key", monthKey);
+  // 違反件数（compliance_alerts）: 未解消(open)かつ「違反(violation)」を含む勤務のみを数える。
+  //   - status=resolved はソフト解消済みなので除外（解消で件数が減る）。
+  //   - alert には警告(warning)のみの行も含まれるため、detail の severity=violation を持つ行だけを違反として計上。
+  let aq = sb.from("compliance_alerts").select("driver_id, detail").eq("month_key", monthKey).eq("status", "open");
   if (driverId) aq = aq.eq("driver_id", driverId);
   const { data: alerts, error: aErr } = await aq;
   if (aErr) throw aErr;
   const alertCount = new Map<string, number>();
   for (const a of alerts ?? []) {
-    alertCount.set(a.driver_id, (alertCount.get(a.driver_id) ?? 0) + 1);
+    const items = (a.detail as { severity?: string }[] | null) ?? [];
+    if (items.some((i) => i.severity === "violation")) {
+      alertCount.set(a.driver_id, (alertCount.get(a.driver_id) ?? 0) + 1);
+    }
   }
 
   const map = new Map<string, DriverMonthlySummary>();
