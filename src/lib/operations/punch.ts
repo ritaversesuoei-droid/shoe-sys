@@ -59,11 +59,12 @@ export async function processPunch(
   driverId: string,
   input: PunchInput,
 ): Promise<PunchResult> {
-  // (冪等) 同一キーが既にあれば再実行しない
+  // (冪等) 同一キーが既にあれば再実行しない。driver_id でスコープし他人の打刻ID露出を防ぐ。
   const { data: existing, error: exErr } = await sb
     .from("events")
     .select("id, shift_id")
     .eq("idempotency_key", input.idempotency_key)
+    .eq("driver_id", driverId)
     .maybeSingle();
   if (exErr) throw exErr;
   if (existing) return { eventId: existing.id, shiftId: existing.shift_id, deduped: true };

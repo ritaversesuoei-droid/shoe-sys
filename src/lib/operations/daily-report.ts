@@ -380,6 +380,11 @@ export async function saveDailyReport(
 
   // 1運行1日報: id 明示が無ければ driver+date で既存を特定（4.6）
   let reportId = input.id ?? null;
+  // 認可: id 明示時は本人の日報のみ操作可（service_role で RLS を通さないためアプリ側で所有者検証）。
+  if (reportId) {
+    const { data: owner } = await sb.from("daily_reports").select("driver_id").eq("id", reportId).maybeSingle();
+    if (!owner || owner.driver_id !== driverId) throw new AppError("この日報を編集する権限がありません", 403);
+  }
   let existingShiftId: string | null = null;
   if (!reportId) {
     const { data: ex } = await sb
@@ -393,6 +398,11 @@ export async function saveDailyReport(
     existingShiftId = ex?.shift_id ?? null;
   }
 
+  // 認可: shift_id 明示時は本人の勤務のみ（他人の勤務の休憩改竄/再計算を防ぐ）。
+  if (input.shift_id) {
+    const { data: shOwner } = await sb.from("shifts").select("driver_id").eq("id", input.shift_id).maybeSingle();
+    if (!shOwner || shOwner.driver_id !== driverId) throw new AppError("指定の勤務を操作する権限がありません", 403);
+  }
   // 紐付く勤務: 明示 → 既存日報 → 当日の勤務 の順で特定（確定時の休憩反映/PDFに使用）
   let shiftId = input.shift_id ?? existingShiftId ?? null;
   if (!shiftId) {
@@ -407,6 +417,19 @@ export async function saveDailyReport(
     shiftId = sh?.id ?? null;
   }
 
+  // 運行開始/終了は紐付く勤務の確定出退勤から補完（保存/確定PDFの空欄を防ぐ）
+  let departureAt: string | null = null;
+  let returnAt: string | null = null;
+  if (shiftId) {
+    const { data: shTime } = await sb
+      .from("shifts")
+      .select("clock_in_at, clock_out_at")
+      .eq("id", shiftId)
+      .maybeSingle();
+    departureAt = shTime?.clock_in_at ?? null;
+    returnAt = shTime?.clock_out_at ?? null;
+  }
+
   const header = {
     driver_id: driverId,
     shift_id: shiftId,
@@ -414,6 +437,8 @@ export async function saveDailyReport(
     status,
     vehicle_no: input.vehicle_no ?? null,
     crew: input.crew ?? null,
+    departure_at: departureAt,
+    return_at: returnAt,
     meter_start: input.meter_start ?? null,
     meter_end: input.meter_end ?? null,
     rest_total_min: restTotal,
