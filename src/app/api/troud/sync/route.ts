@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { applyDispatchRows } from "@/lib/operations/dispatch-sync";
 import { ok, fail, handle } from "@/lib/api/response";
+import { safeEqual, verifyBearer } from "@/lib/secure-compare";
 
 // 外部連携＋一括書込のため Node ＋ 長めのタイムアウト
 export const runtime = "nodejs";
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     if (!secret) return fail("TROUD連携が未設定です（TROUD_SYNC_SECRET を設定してください）", 503);
     const auth = request.headers.get("authorization");
     const hdr = request.headers.get("x-troud-secret");
-    if (auth !== `Bearer ${secret}` && hdr !== secret) return fail("認証エラー", 401);
+    if (!verifyBearer(auth, secret) && !safeEqual(hdr ?? "", secret)) return fail("認証エラー", 401);
 
     const body = (await request.json()) as unknown;
     const raw = Array.isArray(body)

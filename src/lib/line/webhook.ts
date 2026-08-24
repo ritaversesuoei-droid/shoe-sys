@@ -84,7 +84,16 @@ async function onTextMessage(ev: LineWebhookEvent): Promise<void> {
     return;
   }
 
-  // 既に別ユーザーへ連携済みなら上書き（端末変更を許容）。同一userIdの他連携は解除。
+  // なりすまし防止: 対象が既に「別ユーザー」へ連携済みなら、本人確認なしの上書きを拒否する。
+  //   番号(2桁 code)の平文送信だけで他人の連携を奪える／正規ドライバーを締め出せる(DoS)ため、
+  //   端末変更・連携やり直しは事務所（管理者）経由とする。未連携 or 同一userId の再送は許容(冪等)。
+  if (target.line_user_id && target.line_user_id !== userId) {
+    console.warn(`[line] 連携拒否(既連携): code=${target.code} 送信者=${userId.slice(0, 6)}…`);
+    await reply(ev, `ドライバー番号「${text}」は既に連携済みです。\n番号変更・端末変更のご相談は事務所までお願いします。`);
+    return;
+  }
+
+  // 同一userIdが他ドライバーに残っていれば解除（1アカウント=1ドライバー）。
   await admin.from("drivers").update({ line_user_id: null }).eq("line_user_id", userId).neq("id", target.id);
   const { error } = await admin.from("drivers").update({ line_user_id: userId }).eq("id", target.id);
   if (error) {

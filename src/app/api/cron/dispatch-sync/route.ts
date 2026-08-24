@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncDispatchFromSheet } from "@/lib/operations/dispatch-sync";
 import { ok, fail, handle } from "@/lib/api/response";
+import { verifyBearer } from "@/lib/secure-compare";
 
 // 外部シート取得＋一括書込のため Node ＋ 長めのタイムアウト
 export const runtime = "nodejs";
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
   return handle(async () => {
     const secret = process.env.CRON_SECRET;
     if (!secret) return fail("cron未設定です（CRON_SECRET を設定してください）", 503);
-    if (request.headers.get("authorization") !== `Bearer ${secret}`) return fail("認証エラー", 401);
+    if (!verifyBearer(request.headers.get("authorization"), secret)) return fail("認証エラー", 401);
 
     const admin = createAdminClient();
     const result = await syncDispatchFromSheet(admin);

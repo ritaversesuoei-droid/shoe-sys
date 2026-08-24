@@ -10,7 +10,7 @@ import type { PunchItem } from "@/lib/operations/punch";
 /**
  * LINE通知（仕様書 F-16）。トークン/宛先が未設定（またはプレースホルダ）の場合は送らない。
  */
-function isPlaceholder(v?: string): boolean {
+export function isPlaceholder(v?: string): boolean {
   return !v || v.startsWith("your-");
 }
 export function isLineConfigured(): boolean {
