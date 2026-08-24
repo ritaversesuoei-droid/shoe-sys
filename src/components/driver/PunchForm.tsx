@@ -94,6 +94,13 @@ export function PunchForm({
   const [receipts, setReceipts] = useState("");
   const [roundTrip, setRoundTrip] = useState(false);
 
+  // 冪等キーは「フォーム操作1回」に固定する。submit 内で毎回 randomUUID すると、
+  //   二度押しや失敗後リトライで別キーになりサーバの冪等判定が効かず重複打刻になる。
+  //   成功時のみ新キーへ更新し、失敗時は同一キーで再送＝サーバ側で重複排除される。
+  const idemKeyRef = useRef<string | null>(null);
+  if (idemKeyRef.current === null) idemKeyRef.current = crypto.randomUUID();
+  const submittingRef = useRef(false); // 同期的な二重起動ガード（disabled属性はレンダー後で間に合わない）
+
   // 撮影プレビュー用オブジェクトURL（変更時に発行・破棄）
   useEffect(() => {
     const urls = photos.map((p) => URL.createObjectURL(p));
@@ -158,12 +165,14 @@ export function PunchForm({
   }
 
   async function submit() {
+    if (submittingRef.current) return; // 二度押しは即return（重複POST防止）
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
       if (mode === "photo" && photos.length === 0) throw new Error("写真を撮影してください");
 
-      const idempotencyKey = crypto.randomUUID();
+      const idempotencyKey = idemKeyRef.current!;
 
       // 写真をクライアント圧縮して非公開バケットへアップロード（4.3.5）
       const photoPaths: string[] = [];
@@ -228,9 +237,11 @@ export function PunchForm({
       const data = await res.json();
       if (!data.success) throw new Error(data.error ?? "送信に失敗しました");
       setResult(data);
+      idemKeyRef.current = crypto.randomUUID(); // 成功したら次の操作用に新キー
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }

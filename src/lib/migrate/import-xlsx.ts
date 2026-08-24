@@ -77,25 +77,40 @@ export async function importShiftLog(
   sb: SB,
   rows: Row[],
   resolver: ReturnType<typeof createDriverResolver>,
-): Promise<{ inserted: number; skipped: number; driverIds: string[] }> {
+): Promise<{ inserted: number; updated: number; skipped: number; driverIds: string[] }> {
   let inserted = 0;
+  let updated = 0;
   let skipped = 0;
   const insertedDrivers = new Set<string>();
 
   // 冪等判定用に既存 shift の (driver, work_date, clock_in) を一括プリロード（行毎SELECTを回避）。
   // clock_in は tz 表現が揺れるため epoch(ms) をキーに使い、表現差を吸収する。
-  const existing = new Set<string>();
+  type Existing = {
+    id: string;
+    clock_out_at: string | null;
+    edited_in: string | null;
+    edited_out: string | null;
+    rest_time: string | null;
+  };
+  const existing = new Map<string, Existing>();
   const shiftKey = (driverId: string, workDate: string, clockInIso: string) =>
     `${driverId}|${workDate}|${new Date(clockInIso).getTime()}`;
   for (let from = 0; ; from += 1000) {
     const { data, error } = await sb
       .from("shifts")
-      .select("driver_id, work_date, clock_in_at")
+      .select("id, driver_id, work_date, clock_in_at, clock_out_at, edited_in, edited_out, rest_time")
       .order("id", { ascending: true }) // 安定ソート必須（無いとページ境界で取りこぼし→重複INSERT）
       .range(from, from + 999);
     if (error) throw error;
     for (const s of data ?? []) {
-      if (s.clock_in_at) existing.add(shiftKey(s.driver_id, s.work_date, s.clock_in_at));
+      if (s.clock_in_at)
+        existing.set(shiftKey(s.driver_id, s.work_date, s.clock_in_at), {
+          id: s.id,
+          clock_out_at: s.clock_out_at,
+          edited_in: s.edited_in,
+          edited_out: s.edited_out,
+          rest_time: s.rest_time,
+        });
     }
     if (!data || data.length < 1000) break;
   }
@@ -111,36 +126,82 @@ export async function importShiftLog(
     const clockOut = toJstIso(r["確定退勤"]);
     const driverId = (await resolver.resolve(name, { affiliation: "昭栄運輸", create: true }))!;
 
-    if (existing.has(shiftKey(driverId, workDate, clockIn))) {
-      skipped += 1;
-      continue;
-    }
-
     const actualIn = normTime(r["実績出勤"]);
     const actualOut = normTime(r["実績退勤"]);
     const editedIn = normTime(r["修正出勤"]);
     const editedOut = normTime(r["修正退勤"]);
     const rest = normTime(r["休憩時間"]);
+    const newEditedIn = editedIn ? `${editedIn}:00` : null;
+    const newEditedOut = editedOut ? `${editedOut}:00` : null;
+    const newRest = rest ? `${rest}:00` : "0";
+    const revisionStatus = editedIn || editedOut ? "edited" : "none";
 
-    const { error } = await sb.from("shifts").insert({
-      driver_id: driverId,
-      work_date: workDate,
-      month_key: r["月キー"]?.trim() || to_month_key(`${workDate}T00:00:00+09:00`),
-      clock_in_at: clockIn,
-      clock_out_at: clockOut,
-      actual_in: actualIn ? `${actualIn}:00` : null,
-      actual_out: actualOut ? `${actualOut}:00` : null,
-      edited_in: editedIn ? `${editedIn}:00` : null,
-      edited_out: editedOut ? `${editedOut}:00` : null,
-      rest_time: rest ? `${rest}:00` : "0",
-      revision_status: editedIn || editedOut ? "edited" : "none",
-    });
+    const key = shiftKey(driverId, workDate, clockIn);
+    const prev = existing.get(key);
+    if (prev) {
+      // 既存行でも、シート側の後追い記入（特に 確定退勤 null→非null）や修正/休憩の変更は反映する。
+      //   これをしないと退勤後記入の勤務が clock_out_at=null のまま recompute 対象外となり、
+      //   拘束/労働/深夜/違反判定から丸ごと脱落する（並行運用の毎時ミラーで日常的に発生）。
+      const clockOutChanged =
+        clockOut != null &&
+        (prev.clock_out_at == null ||
+          new Date(clockOut).getTime() !== new Date(prev.clock_out_at).getTime());
+      const changed =
+        clockOutChanged ||
+        prev.edited_in !== newEditedIn ||
+        prev.edited_out !== newEditedOut ||
+        (prev.rest_time ?? "0") !== newRest;
+      if (!changed) {
+        skipped += 1;
+        continue;
+      }
+      const { error } = await sb
+        .from("shifts")
+        .update({
+          ...(clockOut != null ? { clock_out_at: clockOut } : {}), // シートが空の間は既存の退勤を消さない
+          actual_in: actualIn ? `${actualIn}:00` : null,
+          actual_out: actualOut ? `${actualOut}:00` : null,
+          edited_in: newEditedIn,
+          edited_out: newEditedOut,
+          rest_time: newRest,
+          revision_status: revisionStatus,
+        })
+        .eq("id", prev.id);
+      if (error) throw error;
+      updated += 1;
+      insertedDrivers.add(driverId); // 更新した driver も再計算対象に含める
+      continue;
+    }
+
+    const { data: ins, error } = await sb
+      .from("shifts")
+      .insert({
+        driver_id: driverId,
+        work_date: workDate,
+        month_key: r["月キー"]?.trim() || to_month_key(`${workDate}T00:00:00+09:00`),
+        clock_in_at: clockIn,
+        clock_out_at: clockOut,
+        actual_in: actualIn ? `${actualIn}:00` : null,
+        actual_out: actualOut ? `${actualOut}:00` : null,
+        edited_in: newEditedIn,
+        edited_out: newEditedOut,
+        rest_time: newRest,
+        revision_status: revisionStatus,
+      })
+      .select("id")
+      .single();
     if (error) throw error;
     inserted += 1;
     insertedDrivers.add(driverId);
-    existing.add(shiftKey(driverId, workDate, clockIn));
+    existing.set(key, {
+      id: ins?.id ?? "",
+      clock_out_at: clockOut,
+      edited_in: newEditedIn,
+      edited_out: newEditedOut,
+      rest_time: newRest,
+    });
   }
-  return { inserted, skipped, driverIds: [...insertedDrivers] };
+  return { inserted, updated, skipped, driverIds: [...insertedDrivers] };
 }
 
 /**

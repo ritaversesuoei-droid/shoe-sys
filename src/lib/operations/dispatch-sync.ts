@@ -3,6 +3,7 @@ import type { Database } from "@/types/database";
 import { parseCsvRows } from "@/lib/migrate/cleanse";
 import { createDriverResolver } from "@/lib/migrate/roster";
 import { buildDispatchPayload } from "@/lib/migrate/dispatch-map";
+import { toWorkDate } from "@/lib/datekey";
 
 type SB = SupabaseClient<Database>;
 
@@ -61,11 +62,27 @@ export async function syncDispatchFromSheet(
 export async function applyDispatchRows(sb: SB, dataRows: string[][]): Promise<DispatchSyncResult> {
   const resolver = createDriverResolver(sb);
   await resolver.preload();
-  const { payload, skipped, dates } = await buildDispatchPayload(dataRows, resolver);
+  const { payload, skipped } = await buildDispatchPayload(dataRows, resolver);
 
-  const sorted = [...dates].sort();
-  const from = sorted[0] ?? null;
-  const to = sorted[sorted.length - 1] ?? null;
+  // 積込日の外れ値ガード: シートのタイポ日付（例 2020/01/01 や 2099/…）が1件でも混じると、
+  //   置換レンジ [min,max] が数年に広がり、関係ない配車履歴を大量削除する事故になる。
+  //   今日を基準に妥当窓(±400日)の行のみを反映対象とし、窓外は除外＝削除レンジも巻き込まない。
+  const today = toWorkDate(new Date().toISOString());
+  const shiftDay = (base: string, days: number) => {
+    const d = new Date(`${base}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+  const lo = shiftDay(today, -400);
+  const hi = shiftDay(today, 400);
+  const valid = payload.filter((p) => typeof p.plan_date === "string" && p.plan_date >= lo && p.plan_date <= hi);
+  const droppedOutlier = payload.length - valid.length;
+  if (droppedOutlier > 0) {
+    console.warn(`[dispatch-sync] 積込日が妥当窓(${lo}〜${hi})外の${droppedOutlier}行を除外（誤削除防止）`);
+  }
+  const validDates = [...new Set(valid.map((p) => p.plan_date as string))].sort();
+  const from = validDates[0] ?? null;
+  const to = validDates[validDates.length - 1] ?? null;
 
   if (from && to) {
     const { error: delErr } = await sb
@@ -77,12 +94,12 @@ export async function applyDispatchRows(sb: SB, dataRows: string[][]): Promise<D
   }
 
   let replaced = 0;
-  for (let i = 0; i < payload.length; i += 500) {
-    const chunk = payload.slice(i, i + 500);
+  for (let i = 0; i < valid.length; i += 500) {
+    const chunk = valid.slice(i, i + 500);
     const { error } = await sb.from("dispatch_plans").insert(chunk);
     if (error) throw error;
     replaced += chunk.length;
   }
 
-  return { fetched: dataRows.length, replaced, skipped, driversLinked: resolver.created(), from, to };
+  return { fetched: dataRows.length, replaced, skipped: skipped + droppedOutlier, driversLinked: resolver.created(), from, to };
 }

@@ -127,19 +127,29 @@ async function persistShiftMetrics(
   // 拘束14h超の「週2回まで」判定（仕様書6.3）。同一週(日曜起算)で「自分より前(時系列)」の超過回数を数える。
   //   自分以外(neq id)だと、後発の超過も数えてしまい、先発勤務の再計算時に警告→違反へ過大判定される。
   //   clock_in_at で時系列に前だけを数えることで、各勤務の「何回目」が再計算しても安定する。
+  //   「14h超」の母数は judgeShift と同じ基準に揃える必要がある: ①2人乗務(double)はラダー対象外、
+  //   ②フェリー控除後(effRestraint)で判定。生の restraint_min で数えると特例勤務を誤って母数に含め、
+  //   本来 warning の勤務を violation に誤昇格させる（DBの restraint_min は控除前の生値）。
   const week = weekRange(shift.work_date);
   let count = 0;
   if (shift.clock_in_at) {
-    const res = await sb
+    const { data: prior } = await sb
       .from("shifts")
-      .select("id", { count: "exact", head: true })
+      .select("restraint_min, ferry_min, crew_type")
       .eq("driver_id", shift.driver_id)
       .gte("work_date", week.start)
       .lte("work_date", week.end)
       .lt("clock_in_at", shift.clock_in_at)
-      .not("clock_out_at", "is", null)
-      .gt("restraint_min", config.daily_restraint.extended_threshold_min);
-    count = res.count ?? 0;
+      .not("clock_out_at", "is", null);
+    const cap = config.special_cases.ferry.credit_cap_min;
+    const threshold = config.daily_restraint.extended_threshold_min;
+    for (const w of prior ?? []) {
+      if (w.crew_type === "double") continue; // 2人乗務は上限までOK＝ラダー対象外
+      const ferryRaw = Math.max(0, Math.round(w.ferry_min ?? 0));
+      const ferry = cap > 0 ? Math.min(ferryRaw, cap) : ferryRaw;
+      const eff = Math.max(0, (w.restraint_min ?? 0) - ferry);
+      if (eff > threshold) count += 1;
+    }
   }
 
   // 改善基準告示の特例（該当勤務のみ・要社労士確認）を作業区分から適用

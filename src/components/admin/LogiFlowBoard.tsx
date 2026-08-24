@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -43,16 +43,22 @@ export function LogiFlowBoard({
   const [modal, setModal] = useState<LFJob | null>(null);
   const [live, setLive] = useState(false);
   const [editing, setEditing] = useState(false);
+  const editingRef = useRef(false);
+  editingRef.current = editing; // 最新の編集状態を購読/ポーリングのクロージャから参照する
   const tomorrow = addDayStr(date, 1);
 
-  // 即時反映（Realtime＋ポーリング）
+  // 即時反映（Realtime＋ポーリング）。編集中は refresh を止めて入力（フォーカス/キャレット）を保護。
   useEffect(() => {
     const sb = createClient();
     const ch = sb
       .channel("logiflow")
-      .on("postgres_changes", { event: "*", schema: "public", table: "dispatch_plans" }, () => router.refresh())
+      .on("postgres_changes", { event: "*", schema: "public", table: "dispatch_plans" }, () => {
+        if (!editingRef.current) router.refresh();
+      })
       .subscribe((s) => setLive(s === "SUBSCRIBED"));
-    const iv = setInterval(() => router.refresh(), 25000);
+    const iv = setInterval(() => {
+      if (!editingRef.current) router.refresh();
+    }, 25000);
     return () => {
       sb.removeChannel(ch);
       clearInterval(iv);

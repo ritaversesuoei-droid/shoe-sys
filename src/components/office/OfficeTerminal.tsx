@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Driver {
   id: string;
@@ -27,6 +27,10 @@ export function OfficeTerminal() {
   const [step, setStep] = useState<Step>("keypad");
   const [code, setCode] = useState("");
   const [selected, setSelected] = useState<Driver | null>(null);
+  // 代行打刻の冪等キーは確認画面に入るたびに固定（毎回 randomUUID だと二度押し・
+  //   失敗リトライで別キーになり重複打刻になる）。同一キーの再送はサーバ側で重複排除。
+  const punchKeyRef = useRef<string | null>(null);
+  const busyRef = useRef(false);
 
   useEffect(() => {
     const t = localStorage.getItem("office_token");
@@ -91,10 +95,13 @@ export function OfficeTerminal() {
     }
     setSelected(target);
     setStep("confirm");
+    punchKeyRef.current = crypto.randomUUID(); // この代行打刻に固定する冪等キー
   }
 
   async function punch(eventType: "departure" | "clock_out") {
     if (!selected || !token) return;
+    if (busyRef.current) return; // 二度押しは即return
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -102,7 +109,7 @@ export function OfficeTerminal() {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-office-token": token },
         body: JSON.stringify({
-          idempotency_key: crypto.randomUUID(),
+          idempotency_key: punchKeyRef.current ?? crypto.randomUUID(),
           driver_id: selected.id,
           event_type: eventType,
           vehicle_no: selected.default_vehicle_no || undefined,
@@ -116,6 +123,7 @@ export function OfficeTerminal() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }

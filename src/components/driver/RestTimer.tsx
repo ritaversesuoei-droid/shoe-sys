@@ -58,6 +58,11 @@ export function RestTimer() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ startISO: string; endISO: string } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // 冪等キーは開始/終了それぞれに固定（毎回 randomUUID だと二度押し・失敗リトライで
+  //   別キーになり休憩が重複記録される）。成功時のみ新キーへ更新、失敗時は同一キーで再送。
+  const busyRef = useRef(false);
+  const startKeyRef = useRef<string | null>(null);
+  const endKeyRef = useRef<string | null>(null);
 
   // 復元
   useEffect(() => {
@@ -80,9 +85,12 @@ export function RestTimer() {
   }, [active]);
 
   const startRest = useCallback(async () => {
+    if (busyRef.current) return; // 二度押しは即return
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
+      if (startKeyRef.current === null) startKeyRef.current = crypto.randomUUID();
       const startISO = new Date().toISOString();
       const vehicleNo = localStorage.getItem("shoei_vehicle_no") ?? undefined;
       const { lat, lng } = await getCoords();
@@ -90,7 +98,7 @@ export function RestTimer() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          idempotency_key: crypto.randomUUID(),
+          idempotency_key: startKeyRef.current,
           event_type: "rest_start",
           occurred_at: startISO,
           vehicle_no: vehicleNo,
@@ -104,25 +112,30 @@ export function RestTimer() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(a));
       setDone(null);
       setActive(a);
+      startKeyRef.current = crypto.randomUUID(); // 次の休憩開始用
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }, []);
 
   const endRest = useCallback(async () => {
     if (!active) return;
+    if (busyRef.current) return; // 二度押しは即return
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
+      if (endKeyRef.current === null) endKeyRef.current = crypto.randomUUID();
       const endISO = new Date().toISOString();
       const { lat, lng } = await getCoords();
       const res = await fetch("/api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          idempotency_key: crypto.randomUUID(),
+          idempotency_key: endKeyRef.current,
           event_type: "rest_end",
           occurred_at: endISO,
           vehicle_no: active.vehicleNo,
@@ -135,9 +148,11 @@ export function RestTimer() {
       localStorage.removeItem(STORAGE_KEY);
       setDone({ startISO: active.startISO, endISO });
       setActive(null);
+      endKeyRef.current = crypto.randomUUID(); // 次の休憩終了用
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }, [active]);
