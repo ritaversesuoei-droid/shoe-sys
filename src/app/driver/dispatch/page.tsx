@@ -52,7 +52,11 @@ export default async function DriverDispatchPage({
       .select("id, plan_date, arrival_date, vehicle_no, shipper, origin_spot, delivery_spot, arrival_time, driver_id, driver_name_raw")
       .eq("plan_date", d)
       .order("sort_no", { ascending: true, nullsFirst: false });
-    return ((data ?? []) as Row[]).filter((r) => r.driver_id === ctx.driverId || (name && r.driver_name_raw === name));
+    // 本人抽出: driver_id 一致が基本。氏名一致は driver_id 未解決(子車等)の行に限定し、
+    // 同名の別ドライバー（driver_id保有）の行を拾わないようにする。
+    return ((data ?? []) as Row[]).filter(
+      (r) => r.driver_id === ctx.driverId || (!!name && !r.driver_id && r.driver_name_raw === name),
+    );
   };
 
   let rows = await fetchMine(day);

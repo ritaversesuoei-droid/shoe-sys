@@ -47,6 +47,7 @@ export async function importEventLog(
       .from("events")
       .select("idempotency_key")
       .not("idempotency_key", "is", null)
+      .order("idempotency_key", { ascending: true }) // 安定ソート必須（無いとページ境界で取りこぼし→再INSERTでunique違反）
       .range(from, from + 999);
     if (error) throw error;
     for (const r of data ?? []) if (r.idempotency_key) existingKeys.add(r.idempotency_key);
@@ -85,7 +86,10 @@ export async function importEventLog(
       .order("clock_in_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (cand && (cand.clock_out_at == null || cand.clock_out_at >= occurredAt)) shiftId = cand.id;
+    // 退勤>=occurred は epoch で比較（tz表現差で文字列比較が逆転するのを防ぐ）
+    if (cand && (cand.clock_out_at == null || new Date(cand.clock_out_at).getTime() >= new Date(occurredAt).getTime())) {
+      shiftId = cand.id;
+    }
 
     const customerId = custByName.get(cleanText(r["customerName"])) ?? null;
 

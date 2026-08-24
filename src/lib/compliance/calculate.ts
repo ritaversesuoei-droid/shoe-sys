@@ -55,10 +55,20 @@ export function calcShiftMetrics(
   input: ShiftMetricsInput,
   config: ComplianceConfig,
 ): ShiftMetrics {
-  const restraintMin = diffMinutes(input.clockInAt, input.clockOutAt);
+  // 日跨ぎ勤務: 退勤が出勤より前（翌日退勤が同日日付で記録される等）なら退勤を+24h補正し、
+  // 拘束/労働/深夜が負にならないようにする（負の拘束時間で月次集計が壊れるのを防ぐ）。
+  let clockOutAt = input.clockOutAt;
+  if (clockOutAt && input.clockInAt) {
+    const inMs = Date.parse(input.clockInAt);
+    const outMs = Date.parse(clockOutAt);
+    if (!Number.isNaN(inMs) && !Number.isNaN(outMs) && outMs < inMs) {
+      clockOutAt = new Date(outMs + 24 * 60 * 60 * 1000).toISOString();
+    }
+  }
+  const restraintMin = diffMinutes(input.clockInAt, clockOutAt);
   const laborMin =
     restraintMin == null ? null : Math.max(0, restraintMin - input.restMin);
-  const nightMin = calcNightMinutes(input.clockInAt, input.clockOutAt, config);
+  const nightMin = calcNightMinutes(input.clockInAt, clockOutAt, config);
   const restPeriodMin = diffMinutes(input.prevClockOutAt, input.clockInAt);
   return { restraintMin, laborMin, nightMin, restPeriodMin };
 }
