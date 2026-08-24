@@ -146,11 +146,18 @@ export async function importShiftLog(
         clockOut != null &&
         (prev.clock_out_at == null ||
           new Date(clockOut).getTime() !== new Date(prev.clock_out_at).getTime());
-      const changed =
-        clockOutChanged ||
-        prev.edited_in !== newEditedIn ||
-        prev.edited_out !== newEditedOut ||
-        (prev.rest_time ?? "0") !== newRest;
+      // 時刻/休憩は保存形式が揺れる（interval "0"↔"00:00:00"、time の桁/秒揺れ）ため分数に正規化して比較。
+      //   文字列直比較だと毎回「変化あり」と誤判定し、無駄な UPDATE と全再計算のスラッシングになる。
+      const toMin = (v: string | null): number => {
+        const m = v ? /^(\d{1,2}):(\d{2})/.exec(v) : null;
+        return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
+      };
+      const editedChanged =
+        (prev.edited_in == null) !== (newEditedIn == null) ||
+        (prev.edited_out == null) !== (newEditedOut == null) ||
+        toMin(prev.edited_in) !== toMin(newEditedIn) ||
+        toMin(prev.edited_out) !== toMin(newEditedOut);
+      const changed = clockOutChanged || editedChanged || toMin(prev.rest_time) !== toMin(newRest);
       if (!changed) {
         skipped += 1;
         continue;
