@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -91,6 +91,10 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
   const [arrSubmitting, setArrSubmitting] = useState(false);
   const [arrErr, setArrErr] = useState<string | null>(null);
   const [arrDone, setArrDone] = useState(false);
+  // 到着報告の冪等キーは「ダイアログを開くたび」に固定（毎回 randomUUID だと二度押し・
+  //   失敗リトライで別キーになり重複到着になる）。同一キーの再送はサーバ側で重複排除される。
+  const arrKeyRef = useRef<string | null>(null);
+  const arrBusyRef = useRef(false);
 
   function openDialog(d: "departure" | "clock_out" | "arrival") {
     setDialog(d);
@@ -98,6 +102,7 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
       setArrCoords(null);
       setArrErr(null);
       setArrDone(false);
+      arrKeyRef.current = crypto.randomUUID(); // この到着報告に固定する冪等キー
       if (typeof navigator !== "undefined" && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (p) => setArrCoords({ lat: p.coords.latitude, lng: p.coords.longitude }),
@@ -113,6 +118,8 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
     setArrDone(false);
   }
   async function submitArrival() {
+    if (arrBusyRef.current) return; // 二度押しは即return
+    arrBusyRef.current = true;
     setArrSubmitting(true);
     setArrErr(null);
     try {
@@ -120,7 +127,7 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          idempotency_key: crypto.randomUUID(),
+          idempotency_key: arrKeyRef.current ?? crypto.randomUUID(),
           event_type: "arrival",
           occurred_at: new Date().toISOString(),
           lat: arrCoords?.lat,
@@ -135,6 +142,7 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
     } catch (e) {
       setArrErr(e instanceof Error ? e.message : String(e));
     } finally {
+      arrBusyRef.current = false;
       setArrSubmitting(false);
     }
   }

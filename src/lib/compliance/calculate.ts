@@ -131,7 +131,7 @@ export function judgeShift(
         severity: over ? "violation" : "warning",
         message: over
           ? `拘束${hhmm(dr.extended_threshold_min)}超が週${dr.extended_count_per_week}回の上限を超過`
-          : `拘束時間が原則(${hhmm(dr.principle_min)})を超過（週${dr.extended_count_per_week}回まで許容）`,
+          : `拘束時間が${hhmm(dr.extended_threshold_min)}を超過（原則${hhmm(dr.principle_min)}・週${dr.extended_count_per_week}回まで許容）`,
         actualMin: effRestraint,
         thresholdMin: dr.extended_threshold_min,
       });

@@ -35,6 +35,7 @@ export interface MirrorResult {
   vehicles?: number;
   customers?: number;
   shiftsInserted?: number;
+  shiftsUpdated?: number;
   shiftsSkipped?: number;
   events?: number;
   items?: number;
@@ -102,8 +103,9 @@ export async function mirrorFromSheets(sb: SB): Promise<MirrorResult> {
       const rows = sRows.filter((r) => inWindow(r["開始日"], cutoff));
       const sr = await importShiftLog(sb, rows, resolver);
       result.shiftsInserted = sr.inserted;
+      result.shiftsUpdated = sr.updated;
       result.shiftsSkipped = sr.skipped;
-      affectedDrivers = sr.driverIds; // 新規勤務のあったドライバーだけ後で再計算
+      affectedDrivers = sr.driverIds; // 新規・更新のあったドライバーを後で再計算（更新も driverIds に含む）
     }
 
     // 3) event_log → events (+ 明細)（直近ウィンドウのみ・冪等）
