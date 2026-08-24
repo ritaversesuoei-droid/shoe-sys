@@ -59,6 +59,18 @@ async function main() {
   await handleWebhookEvents([{ type: "unfollow", source: { type: "user", userId: U } }]);
   const { data: d3 } = await sb.from("drivers").select("line_user_id").eq("id", driverId).single();
   check("unfollow で連携解除", d3?.line_user_id === null, d3?.line_user_id);
+
+  console.log("\n[6] 既連携ドライバーへの別ユーザーからの乗っ取りを拒否（なりすまし防止）");
+  await sb.from("drivers").update({ line_user_id: U }).eq("id", driverId); // 正規連携を復元
+  const U3 = "Uhijack_" + (Date.now() % 1000000);
+  await handleWebhookEvents([msg(code, U3)]);
+  const { data: d4 } = await sb.from("drivers").select("line_user_id").eq("id", driverId).single();
+  check("別ユーザーの番号送信では上書きされない（正規連携を維持）", d4?.line_user_id === U, d4?.line_user_id);
+
+  console.log("\n[7] 同一ユーザーの再送は冪等（許容）");
+  await handleWebhookEvents([msg(code, U)]);
+  const { data: d5 } = await sb.from("drivers").select("line_user_id").eq("id", driverId).single();
+  check("同一ユーザーの再連携は許容", d5?.line_user_id === U, d5?.line_user_id);
 }
 
 async function cleanup() {

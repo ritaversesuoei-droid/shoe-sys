@@ -112,6 +112,19 @@ export async function processPunch(
     }
   }
 
+  // 写真パスは本人フォルダ配下のみ許可（他ドライバーの実体を自分の打刻へ紐付ける帰属詐称を防ぐ）。
+  //   規約: {yyyymm}/{driver_id}/{file}.jpg（Storage RLS: foldername[2]=driver_id と対称）。イベント挿入前に弾く。
+  if (input.photo_paths?.length) {
+    const bad = input.photo_paths.find((p) => {
+      const seg = p.split("/");
+      const ym = seg[0];
+      const did = seg[1];
+      const file = seg[seg.length - 1];
+      return seg.length < 3 || !ym || !/^\d{6}$/.test(ym) || did !== driverId || !file || !file.endsWith(".jpg");
+    });
+    if (bad) throw new PunchError("写真の保存先が不正です");
+  }
+
   // events 挿入
   const { data: inserted, error: insErr } = await sb
     .from("events")

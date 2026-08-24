@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyLineSignature } from "@/lib/line/signature";
 import { handleWebhookEvents, type LineWebhookEvent } from "@/lib/line/webhook";
+import { isPlaceholder } from "@/lib/line/notify";
 import { getServerEnv } from "@/lib/env";
 
 /**
@@ -12,22 +13,25 @@ import { getServerEnv } from "@/lib/env";
  */
 export async function POST(request: Request) {
   const env = getServerEnv();
-  if (!env.LINE_CHANNEL_SECRET) {
-    console.error("[line] LINE_CHANNEL_SECRET 未設定");
+  const secret = env.LINE_CHANNEL_SECRET;
+  // 秘密鍵が未設定 or 公開プレースホルダ("your-...")のままなら fail-closed。
+  //   プレースホルダはリポジトリ既知値のため、そのまま鍵に使うと誰でも署名を偽造できる。
+  //   notify.ts のトークン判定(isPlaceholder)と対称にする。
+  if (isPlaceholder(secret)) {
+    console.error("[line] LINE_CHANNEL_SECRET 未設定（またはプレースホルダ）");
     return NextResponse.json({ success: false }, { status: 500 });
   }
 
   const rawBody = await request.text();
   const signature = request.headers.get("x-line-signature");
 
-  if (!verifyLineSignature(rawBody, signature, env.LINE_CHANNEL_SECRET)) {
+  if (!verifyLineSignature(rawBody, signature, secret as string)) {
     return NextResponse.json({ success: false, error: "署名検証失敗" }, { status: 401 });
   }
 
-  const payload = JSON.parse(rawBody) as { events?: LineWebhookEvent[] };
-  // 友だち追加→連携案内 / 番号送信→ドライバー連携 / ブロック→解除。
-  // 各イベントは best-effort（失敗してもLINEへは200を返す）。低頻度のため同期処理。
+  // 署名検証済み。イベントは best-effort（不正JSON含め失敗してもLINEへは200を返し再送を防ぐ）。低頻度のため同期処理。
   try {
+    const payload = JSON.parse(rawBody) as { events?: LineWebhookEvent[] };
     await handleWebhookEvents(payload.events ?? []);
   } catch (e) {
     console.error("[line] webhook処理エラー（200は返す）", e);

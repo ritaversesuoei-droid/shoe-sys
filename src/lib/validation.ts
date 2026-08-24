@@ -50,7 +50,7 @@ export type CreateEventInput = z.infer<typeof createEventSchema>;
 export const saveDailyReportSchema = z.object({
   id: z.string().uuid().optional(),
   shift_id: z.string().uuid().optional(),
-  report_date: z.string(), // yyyy-MM-dd
+  report_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日付形式が不正です"), // yyyy-MM-dd
   status: z.enum(["draft", "confirmed"]).default("draft"),
   vehicle_no: z.string().optional(),
   crew: z.string().optional(),
