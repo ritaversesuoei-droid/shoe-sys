@@ -127,7 +127,7 @@ export function LogiFlowBoard({
         </div>
         <Link href={`/admin/logiflow?date=${prevDate}`} className="rounded-lg border-2 border-slate-900 bg-white px-3 py-1 text-lg font-bold text-slate-900">◀</Link>
         <form method="GET" className="flex items-center gap-1">
-          <input type="date" name="date" defaultValue={date} className="rounded-lg border-2 border-slate-900 px-2 py-1 text-sm font-bold text-slate-900" />
+          <input key={date} type="date" name="date" defaultValue={date} className="rounded-lg border-2 border-slate-900 px-2 py-1 text-sm font-bold text-slate-900" />
           <button className="rounded-lg bg-slate-900 px-3 py-1 text-sm font-bold text-white">表示</button>
         </form>
         <Link href={`/admin/logiflow?date=${nextDate}`} className="rounded-lg border-2 border-slate-900 bg-white px-3 py-1 text-lg font-bold text-slate-900">▶</Link>
@@ -277,16 +277,16 @@ function JobBox({
         {diff && <span className="text-red-600">!車:{job.vehicleNo}</span>}
       </div>
       <div className="flex flex-1 items-start justify-between gap-0.5">
-        <textarea defaultValue={job.originSpot ?? ""} readOnly={ro} onBlur={ro ? undefined : (e) => patch(job.id, "origin_spot", e.target.value)}
+        <textarea key={`o-${job.originSpot ?? ""}`} defaultValue={job.originSpot ?? ""} readOnly={ro} onBlur={ro ? undefined : (e) => patch(job.id, "origin_spot", e.target.value)}
           className={`h-8 w-[46%] resize-none break-all border-none bg-transparent p-0 text-[9px] font-bold leading-tight ${spotCls} ${focusCls}`} />
         <span className={`mt-1 text-[7px] font-bold ${spotCls}`}>→</span>
-        <textarea defaultValue={job.destSpot ?? ""} readOnly={ro} onBlur={ro ? undefined : (e) => patch(job.id, "delivery_spot", e.target.value)}
+        <textarea key={`d-${job.destSpot ?? ""}`} defaultValue={job.destSpot ?? ""} readOnly={ro} onBlur={ro ? undefined : (e) => patch(job.id, "delivery_spot", e.target.value)}
           className={`h-8 w-[46%] resize-none break-all border-none bg-transparent p-0 text-[9px] font-bold leading-tight ${spotCls} ${focusCls}`} />
       </div>
       <div>
-        <input defaultValue={job.arrivalTime ?? ""} readOnly={ro} placeholder="到着指定" onBlur={ro ? undefined : (e) => patch(job.id, "arrival_time", e.target.value)}
+        <input key={`a-${job.arrivalTime ?? ""}`} defaultValue={job.arrivalTime ?? ""} readOnly={ro} placeholder="到着指定" onBlur={ro ? undefined : (e) => patch(job.id, "arrival_time", e.target.value)}
           className={`w-full border-none border-t border-black bg-blue-50 p-0 text-center text-[8px] font-bold ${focusCls}`} />
-        <input defaultValue={job.express ?? ""} readOnly={ro} placeholder="高速指示" onBlur={ro ? undefined : (e) => patch(job.id, "highway_instruction", e.target.value)}
+        <input key={`e-${job.express ?? ""}`} defaultValue={job.express ?? ""} readOnly={ro} placeholder="高速指示" onBlur={ro ? undefined : (e) => patch(job.id, "highway_instruction", e.target.value)}
           className={`w-full border-none border-t border-black bg-yellow-50 p-0 text-center text-[8px] font-bold ${focusCls}`} />
       </div>
     </div>
