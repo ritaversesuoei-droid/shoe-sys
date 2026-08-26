@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { LFDriver, LFJob } from "@/lib/operations/logiflow";
 
 function addDayStr(dateStr: string, n: number): string {
@@ -45,25 +46,47 @@ export function LogiFlowBoard({
   const [editing, setEditing] = useState(false);
   const editingRef = useRef(false);
   editingRef.current = editing; // 最新の編集状態を購読/ポーリングのクロージャから参照する
+  const [othersEditing, setOthersEditing] = useState(false); // 他の管理者が編集中か（同時編集の警告）
+  const chRef = useRef<RealtimeChannel | null>(null);
   const tomorrow = addDayStr(date, 1);
 
   // 即時反映（Realtime＋ポーリング）。編集中は refresh を止めて入力（フォーカス/キャレット）を保護。
+  //   あわせて presence で自分の編集状態を共有し、他の管理者が編集中なら警告を出す（同時編集の事故防止）。
   useEffect(() => {
     const sb = createClient();
+    const myKey = Math.random().toString(36).slice(2); // このタブの識別子
     const ch = sb
-      .channel("logiflow")
+      .channel("logiflow", { config: { presence: { key: myKey } } })
       .on("postgres_changes", { event: "*", schema: "public", table: "dispatch_plans" }, () => {
         if (!editingRef.current) router.refresh();
       })
-      .subscribe((s) => setLive(s === "SUBSCRIBED"));
+      .on("presence", { event: "sync" }, () => {
+        const state = ch.presenceState() as Record<string, { editing?: boolean }[]>;
+        let others = false;
+        for (const [key, metas] of Object.entries(state)) {
+          if (key !== myKey && metas.some((m) => m.editing)) { others = true; break; }
+        }
+        setOthersEditing(others);
+      })
+      .subscribe((s) => {
+        setLive(s === "SUBSCRIBED");
+        if (s === "SUBSCRIBED") ch.track({ editing: editingRef.current });
+      });
+    chRef.current = ch;
     const iv = setInterval(() => {
       if (!editingRef.current) router.refresh();
     }, 25000);
     return () => {
+      chRef.current = null;
       sb.removeChannel(ch);
       clearInterval(iv);
     };
   }, [router]);
+
+  // 編集モードの切替を presence に反映（他の管理者の画面に「編集中」を知らせる）
+  useEffect(() => {
+    chRef.current?.track({ editing });
+  }, [editing]);
 
   async function api(path: string, method: string, body?: unknown) {
     setBusy(true);
@@ -158,6 +181,11 @@ export function LogiFlowBoard({
           <button onClick={() => window.print()} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white">🖨️ A4印刷</button>
         </div>
       </div>
+      {othersEditing && (
+        <p className="mb-2 rounded-lg border-2 border-amber-500 bg-amber-50 p-2 text-sm font-bold text-amber-800 no-print">
+          ⚠ 他の管理者が編集中です。同時に編集すると変更が競合するおそれがあります。ご注意ください。
+        </p>
+      )}
       {editing && (
         <p className="mb-2 rounded-lg border-2 border-green-500 bg-green-50 p-2 text-sm font-bold text-green-800 no-print">
           ✏️ 編集モード：案件を<strong>左右にドラッグ</strong>で並び替え／「翌日」列へドラッグで翌日送り／セルはその場で編集・タップで詳細・×で削除

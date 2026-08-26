@@ -24,6 +24,7 @@ const STATUS: Record<string, { cell: string; badge: string; text: string }> = {
   working: { cell: "bg-green-100", badge: "bg-green-600", text: "稼働中" },
   finished: { cell: "bg-orange-100", badge: "bg-orange-500", text: "終業" },
   idle: { cell: "bg-white", badge: "bg-slate-400", text: "打刻のみ" },
+  absent: { cell: "bg-slate-50", badge: "bg-slate-300", text: "未出勤" },
 };
 
 /** 数値なら単位を付ける（"2587"→"2587kg"、既に単位付き/非数値はそのまま）。 */
@@ -61,7 +62,7 @@ const EMPTY_ITEM: TimItem = {
   shipper: null, delivery_spot: null, quantity: null, weight: null, cargo_type: null, receipts: null, slip_no: null,
 };
 
-/** 一覧カードの見出し（場所）。荷卸は住所ではなく「完了」対象（delivery_spot）を表示する。 */
+/** 一覧カードの見出し（場所）。荷卸は「完了」対象、積込は「配達先(着地)」を主表示にする。 */
 function placeFor(e: TimEvent): string {
   if (e.type === "unloading") {
     const dests = e.items.map((it) => it.delivery_spot).filter(Boolean).join(" / ");
@@ -69,7 +70,19 @@ function placeFor(e: TimEvent): string {
     if (e.note) return e.note.replace(/^【?完了[:：]\s*/, "完了: ").replace(/】$/, ""); // 【完了: ○○】→ 完了: ○○
     return e.address || "";
   }
+  if (e.type === "loading") {
+    // ③ 積込カードは「配達先(着地/delivery_spot)」を主表示に。無ければ従来の客先/住所。
+    const dests = e.items.map((it) => it.delivery_spot).filter(Boolean).join(" / ");
+    if (dests) return dests;
+    return e.customer || e.address || "";
+  }
   return e.customer || e.address || "";
+}
+/** 積込カードの荷主（配達先の下に小さく併記）。 */
+function shipperFor(e: TimEvent): string | null {
+  if (e.type !== "loading") return null;
+  const s = e.items.map((it) => it.shipper).filter(Boolean).join(" / ");
+  return s || null;
 }
 /** 詳細ポップアップの明細1行（種別ごと・数量/受領書は0でも表示）。 */
 function detailItemSegs(e: TimEvent, it: TimItem): string {
@@ -124,6 +137,7 @@ function EventsStrip({ events, name, onOpen }: { events: TimEvent[]; name: strin
           events.map((e) => {
             const m = meta(e.type);
             const place = placeFor(e);
+            const shipper = shipperFor(e);
             const metricsStr = itemMetrics(e);
             return (
               <button
@@ -137,6 +151,7 @@ function EventsStrip({ events, name, onOpen }: { events: TimEvent[]; name: strin
                   {e.photos.length > 0 && <span title="写真あり">📷</span>}
                 </div>
                 {place && <div className="mt-0.5 line-clamp-2 text-[10px] font-medium leading-tight opacity-80">{place}</div>}
+                {shipper && <div className="line-clamp-1 text-[9px] font-medium leading-tight opacity-60">荷主: {shipper}</div>}
                 {metricsStr && <div className="mt-0.5 text-[10px] font-bold leading-tight">{metricsStr}</div>}
               </button>
             );
@@ -259,7 +274,7 @@ export function TimBoard({
           <span className={`h-2 w-2 rounded-full ${live ? "bg-green-500" : "bg-slate-300"}`} />
           {live ? "自動更新中（即時反映）" : "接続中…"}
         </span>
-        <span>稼働 {rows.filter((r) => r.status === "working").length} / 終業 {rows.filter((r) => r.status === "finished").length} / 全 {rows.length} 名</span>
+        <span>稼働 {rows.filter((r) => r.status === "working").length} / 終業 {rows.filter((r) => r.status === "finished").length} / 未出勤 {rows.filter((r) => r.status === "absent").length} / 全 {rows.length} 名</span>
       </div>
 
       {rows.length === 0 ? (
