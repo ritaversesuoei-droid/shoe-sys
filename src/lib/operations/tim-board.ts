@@ -4,7 +4,7 @@ import type { Database } from "@/types/database";
 type SB = SupabaseClient<Database>;
 type EventType = Database["public"]["Tables"]["events"]["Row"]["event_type"];
 
-export type TimStatus = "working" | "finished" | "idle";
+export type TimStatus = "working" | "finished" | "idle" | "absent";
 
 export interface TimItem {
   shipper: string | null;
@@ -129,6 +129,22 @@ export async function getTimBoard(sb: SB, dateStr: string): Promise<TimRow[]> {
     row.status = hasStart && !hasEnd ? "working" : hasEnd ? "finished" : "idle";
   }
 
-  // 最新の打刻が新しい順（現行GAS renderBoard の並びに準拠）
-  return [...map.values()].sort((a, b) => (b.lastAt ?? "").localeCompare(a.lastAt ?? ""));
+  // ② 未打刻の自社ドライバーも「未出勤」として行を出す（休み・出勤打刻忘れに気づけるように）。
+  //    協力店社(manage_attendance=false)は勤怠管理対象外のため、打刻があった時のみ表示(=map経由)。
+  const { data: roster } = await sb
+    .from("drivers")
+    .select("id, code, name, line_user_id, manage_attendance")
+    .eq("is_active", true);
+  for (const d of roster ?? []) {
+    if (d.manage_attendance === false || map.has(d.id)) continue;
+    map.set(d.id, {
+      driverId: d.id, name: d.name, code: d.code, status: "absent",
+      lastAt: null, lineUserId: d.line_user_id, events: [],
+    });
+  }
+
+  // 最新の打刻が新しい順。未打刻(lastAt=null)は下にまとめ、その中はコード順で安定表示。
+  return [...map.values()].sort(
+    (a, b) => (b.lastAt ?? "").localeCompare(a.lastAt ?? "") || (a.code ?? "").localeCompare(b.code ?? ""),
+  );
 }
