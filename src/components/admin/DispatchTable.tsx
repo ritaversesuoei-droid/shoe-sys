@@ -25,7 +25,16 @@ type TextKey = "shipper" | "origin_spot" | "delivery_spot" | "arrival_time" | "v
  *   列＝荷主名 / 積地 / 着地 / 着日 / 時間 / 車番 / 所属 / 担当者。
  *   PCは表、スマホは1件ずつのカード（箇条書き）で表示。編集は dispatch_plans に直接書込→流れ表にも即反映。
  */
-export function DispatchTable({ date, rows, confirmed }: { date: string; rows: DispatchRow[]; confirmed: boolean }) {
+/** ISO(UTC) → JST "M/D HH:MM:SS"（最終更新の表示用）。 */
+function jstStamp(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "";
+  const d = new Date(t + 9 * 3600 * 1000);
+  const p = (v: number) => String(v).padStart(2, "0");
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
+}
+
+export function DispatchTable({ date, rows, confirmed, now }: { date: string; rows: DispatchRow[]; confirmed: boolean; now: string }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -134,6 +143,7 @@ export function DispatchTable({ date, rows, confirmed }: { date: string; rows: D
           <span className={`h-2 w-2 rounded-full ${live ? "bg-green-500" : "bg-slate-300"}`} />
           {live ? "自動反映中（即時）" : "自動更新中"}
         </span>
+        <span className="text-[10px] text-slate-400" title="この画面のデータを取得した時刻（更新・自動反映で更新）">最終更新 {jstStamp(now)}</span>
         {busy && <span className="text-xs font-bold text-emerald-600">保存中…</span>}
         {editing && (
           <div className="ml-auto flex items-center gap-2">

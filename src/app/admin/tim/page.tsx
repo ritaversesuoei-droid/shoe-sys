@@ -52,6 +52,7 @@ export default async function TimPage({
       nextDay={shiftDay(1)}
       lineSent={usage.data?.sent_count ?? 0}
       lineLimit={monthlyLimit}
+      now={new Date().toISOString()}
     />
   );
 }
