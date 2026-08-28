@@ -28,7 +28,7 @@ function weekStart(workDate: string): string {
  */
 export async function recomputeAllMetrics(
   sb: SB,
-  opts: { driverIds?: string[] } = {},
+  opts: { driverIds?: string[]; sinceWorkDate?: string } = {},
 ): Promise<{ shifts: number; alerts: number }> {
   const config = await loadComplianceConfig(sb);
   // driverIds 指定時はそのドライバーのみ再計算（差分ミラーの高速化用。
@@ -67,50 +67,56 @@ export async function recomputeAllMetrics(
       const ext = weekExt.get(wk) ?? 0;
       const judgement = judgeShift(metrics, config, { extendedCountThisWeek: ext });
 
-      const warnR =
-        judgement.items.find((i) => i.type === "restraint" && i.severity !== "info")?.message ?? null;
-      const warnRest =
-        judgement.items.find((i) => i.type === "rest_period" && i.severity !== "info")?.message ?? null;
+      // 前勤務退勤・週次拡張回数の文脈は全勤務を辿って正しく積むが、DB書き込みは対象期間の勤務だけに絞る。
+      //   （sinceWorkDate 指定時＝差分ミラー。全履歴を毎回書き戻すと件数×2クエリで60s超過するのを防ぐ。
+      //    古い勤務は既に指標が保存済みで、ここでは読み取りだけ＝文脈シードに使う。）
+      const write = !opts.sinceWorkDate || s.work_date >= opts.sinceWorkDate;
+      if (write) {
+        const warnR =
+          judgement.items.find((i) => i.type === "restraint" && i.severity !== "info")?.message ?? null;
+        const warnRest =
+          judgement.items.find((i) => i.type === "rest_period" && i.severity !== "info")?.message ?? null;
 
-      await sb
-        .from("shifts")
-        .update({
-          restraint_min: metrics.restraintMin,
-          labor_min: metrics.laborMin,
-          night_min: metrics.nightMin,
-          rest_period_min: metrics.restPeriodMin,
-          warn_restraint: warnR,
-          warn_rest: warnRest,
-        })
-        .eq("id", s.id);
-
-      if (judgement.alertTypes.length > 0) {
-        await sb.from("compliance_alerts").upsert(
-          {
-            shift_id: s.id,
-            driver_id: s.driver_id,
-            work_date: s.work_date,
-            month_key: s.month_key,
-            alert_types: judgement.alertTypes,
+        await sb
+          .from("shifts")
+          .update({
             restraint_min: metrics.restraintMin,
             labor_min: metrics.laborMin,
-            rest_period_min: metrics.restPeriodMin,
             night_min: metrics.nightMin,
-            detail: judgement.items as unknown as Json,
-            status: "open",
-          },
-          { onConflict: "shift_id" },
-        );
-        alertCount += 1;
-      } else {
-        await sb.from("compliance_alerts").delete().eq("shift_id", s.id);
+            rest_period_min: metrics.restPeriodMin,
+            warn_restraint: warnR,
+            warn_rest: warnRest,
+          })
+          .eq("id", s.id);
+
+        if (judgement.alertTypes.length > 0) {
+          await sb.from("compliance_alerts").upsert(
+            {
+              shift_id: s.id,
+              driver_id: s.driver_id,
+              work_date: s.work_date,
+              month_key: s.month_key,
+              alert_types: judgement.alertTypes,
+              restraint_min: metrics.restraintMin,
+              labor_min: metrics.laborMin,
+              rest_period_min: metrics.restPeriodMin,
+              night_min: metrics.nightMin,
+              detail: judgement.items as unknown as Json,
+              status: "open",
+            },
+            { onConflict: "shift_id" },
+          );
+          alertCount += 1;
+        } else {
+          await sb.from("compliance_alerts").delete().eq("shift_id", s.id);
+        }
+        shiftCount += 1;
       }
 
       if (metrics.restraintMin != null && metrics.restraintMin > config.daily_restraint.extended_threshold_min) {
         weekExt.set(wk, ext + 1);
       }
       prevOut = s.clock_out_at;
-      shiftCount += 1;
     }
   }
   return { shifts: shiftCount, alerts: alertCount };

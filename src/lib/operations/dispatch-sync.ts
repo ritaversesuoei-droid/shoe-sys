@@ -51,7 +51,26 @@ export async function syncDispatchFromSheet(
 
   const rows = parseCsvRows(csv);
   const dataRows = rows.slice(1).filter((r) => r.some((c) => c && c.trim()));
-  return applyDispatchRows(sb, dataRows);
+
+  // 変更検知: 取得CSVが前回と同一なら再取込をスキップ（5分ごとに数千行を毎回 delete+insert する
+  //   無駄な書き込み・テーブル churn・時々の60s超過を避ける）。TROUD がシートを更新すると CSV が
+  //   変わりハッシュ不一致→通常どおり同期する。
+  const hash = `${csv.length}:${hashStr(csv)}`;
+  const { data: prev } = await sb.from("app_settings").select("value").eq("key", "dispatch_sync_state").maybeSingle();
+  const prevHash = (prev?.value as { csv_hash?: string } | null)?.csv_hash ?? null;
+  if (prevHash && prevHash === hash) {
+    return { fetched: dataRows.length, replaced: 0, skipped: 0, driversLinked: 0, from: null, to: null };
+  }
+  const result = await applyDispatchRows(sb, dataRows);
+  await sb.from("app_settings").upsert({ key: "dispatch_sync_state", value: { csv_hash: hash } }, { onConflict: "key" });
+  return result;
+}
+
+/** 変更検知用の軽量ハッシュ（djb2）。change-detection 用途で衝突は実害小。長さと併用で更に頑健化。 */
+function hashStr(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = (((h << 5) + h) ^ s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
 }
 
 /**

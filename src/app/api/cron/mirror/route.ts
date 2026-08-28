@@ -9,7 +9,7 @@ export const maxDuration = 60;
 
 /**
  * GET /api/cron/mirror
- *   並行運用ミラー（現行スプレッドシート → shoei-sys）を1時間ごとに実行する（Vercel Cron 用）。
+ *   並行運用ミラー（現行スプレッドシート → shoei-sys）を5分ごとに実行する（GitHub Actions から起動）。
  *   CRON_SECRET を設定すると有効化（Vercel が Authorization: Bearer で呼ぶ）。未設定時は 503。
  *   取り込む対象・シートは MIRROR_* 環境変数で構成（未設定なら configured:false で何もしない）。
  */

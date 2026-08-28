@@ -1,0 +1,44 @@
+name: mirror
+
+# 並行運用ミラー（現行スプレッドシート → shoei-sys）を5分ごとに起動する。
+# Vercel Hobby プランは短間隔 Cron を使えないため、GitHub Actions から本番の
+# /api/cron/mirror を叩く方式にしている（public リポジトリのため Actions 実行分は無料）。
+# 手動起動も可（Actions → mirror → Run workflow）。勤怠・配車（流れ表）の両方をシートから取り込む。
+#
+# 注意: GitHub Actions のスケジュールは最短5分間隔。混雑時は起動が数分遅れることがあり、
+#       厳密な定刻実行は保証されない（おおむね5分間隔で反映される、という前提）。
+#
+# 必要なリポジトリ Secret（Settings → Secrets and variables → Actions → Secrets）:
+#   CRON_SECRET … Vercel 環境変数 CRON_SECRET と同じ値
+# 任意の Variable（同 → Variables）:
+#   MIRROR_URL  … 既定 https://shoe-sys.vercel.app/api/cron/mirror（別URLの場合のみ設定）
+
+on:
+  schedule:
+    - cron: "*/5 * * * *" # 5分ごと（UTC基準・GitHub Actions の最短間隔）
+  workflow_dispatch: {}
+
+# 前回の実行が終わる前に次が来たら、重ねずに待たせる（多重取り込み・二重更新を防ぐ）
+concurrency:
+  group: mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger mirror endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          MIRROR_URL: ${{ vars.MIRROR_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET secret が未設定のためスキップします（設定後に有効化されます）。"; exit 0
+          fi
+          URL="${MIRROR_URL:-https://shoe-sys.vercel.app/api/cron/mirror}"
+          echo "GET $URL"
+          code=$(curl -sS -o /tmp/mirror_out -w "%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" "$URL")
+          echo "HTTP $code"
+          cat /tmp/mirror_out; echo
+          test "$code" = "200"
