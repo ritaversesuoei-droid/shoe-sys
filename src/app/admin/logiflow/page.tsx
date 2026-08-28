@@ -44,6 +44,7 @@ export default async function LogiFlowPage({
       prevDate={shift(-1)}
       nextDate={shift(1)}
       confirmed={confirmed}
+      now={new Date().toISOString()}
     />
   );
 }

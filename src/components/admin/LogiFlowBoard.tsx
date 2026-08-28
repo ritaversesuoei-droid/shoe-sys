@@ -12,6 +12,14 @@ function addDayStr(dateStr: string, n: number): string {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
+/** ISO(UTC) → JST "M/D HH:MM:SS"（最終更新の表示用）。 */
+function jstStamp(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "";
+  const d = new Date(t + 9 * 3600 * 1000);
+  const p = (v: number) => String(v).padStart(2, "0");
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
+}
 function mdw(dateStr: string): { text: string; cls: string } {
   const d = new Date(`${dateStr}T00:00:00Z`);
   const wi = d.getUTCDay();
@@ -29,6 +37,7 @@ export function LogiFlowBoard({
   prevDate,
   nextDate,
   confirmed,
+  now,
 }: {
   date: string;
   drivers: LFDriver[];
@@ -36,6 +45,7 @@ export function LogiFlowBoard({
   prevDate: string;
   nextDate: string;
   confirmed: boolean;
+  now: string; // サーバのデータ取得時刻(ISO)。更新/自動反映のたびに再描画で更新される
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -158,6 +168,7 @@ export function LogiFlowBoard({
         <span className={`inline-flex items-center gap-1 text-xs ${confirmed ? "text-red-100" : live ? "text-green-600" : "text-slate-400"}`}>
           <span className={`h-2 w-2 rounded-full ${live ? "bg-green-500" : "bg-slate-300"}`} /> 自動反映
         </span>
+        <span className={`text-[10px] ${confirmed ? "text-red-100" : "text-slate-400"}`} title="この画面のデータを取得した時刻（更新・自動反映で更新）">最終更新 {jstStamp(now)}</span>
         <div className="ml-auto flex items-center gap-2">
           {/* 確定 / 確定解除：配車表のタイトル帯も赤/通常に切替 */}
           <button

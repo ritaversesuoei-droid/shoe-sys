@@ -27,6 +27,15 @@ const STATUS: Record<string, { cell: string; badge: string; text: string }> = {
   absent: { cell: "bg-slate-50", badge: "bg-slate-300", text: "未出勤" },
 };
 
+/** ISO(UTC) → JST "M/D HH:MM:SS"（最終更新の表示用）。 */
+function jstStamp(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "";
+  const d = new Date(t + 9 * 3600 * 1000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
+}
+
 /** 数値なら単位を付ける（"2587"→"2587kg"、既に単位付き/非数値はそのまま）。 */
 function withUnit(v: string | null, unit: string): string {
   if (!v) return "";
@@ -169,6 +178,7 @@ export function TimBoard({
   nextDay,
   lineSent,
   lineLimit,
+  now,
 }: {
   day: string;
   rows: TimRow[];
@@ -176,6 +186,7 @@ export function TimBoard({
   nextDay: string;
   lineSent: number;
   lineLimit: number | null;
+  now: string; // サーバのデータ取得時刻(ISO)。更新/自動反映のたびに再描画で更新される
 }) {
   const router = useRouter();
   const [detail, setDetail] = useState<{ ev: TimEvent; name: string } | null>(null);
@@ -274,6 +285,7 @@ export function TimBoard({
           <span className={`h-2 w-2 rounded-full ${live ? "bg-green-500" : "bg-slate-300"}`} />
           {live ? "自動更新中（即時反映）" : "接続中…"}
         </span>
+        <span className="text-slate-400" title="この画面のデータを取得した時刻（更新・自動反映で更新）">最終更新 {jstStamp(now)}</span>
         <span>稼働 {rows.filter((r) => r.status === "working").length} / 終業 {rows.filter((r) => r.status === "finished").length} / 未出勤 {rows.filter((r) => r.status === "absent").length} / 全 {rows.length} 名</span>
       </div>
 
