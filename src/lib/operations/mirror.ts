@@ -15,7 +15,7 @@ type SB = SupabaseClient<Database>;
  * 現行スプレッドシート → shoei-sys の「並行運用ミラー」。
  *   現行（Googleスプレッドシート）を"正"のまま、その内容を新システムへ片方向コピーする。
  *   既存の冪等インポータ（drivers/vehicles/客先/shift_log/event_log/配車）を再利用し、
- *   直近ウィンドウ（既定21日）だけを処理して1時間ごとの実行でも軽く保つ。
+ *   直近ウィンドウ（既定21日）だけを処理して5分ごとの実行でも軽く保つ。
  *
  * 設定（環境変数, 未設定なら configured:false で何もしない）:
  *   MIRROR_SHEET_ID       … 勤怠ブックのスプレッドシートID（これだけでOK）
@@ -131,9 +131,9 @@ export async function mirrorFromSheets(sb: SB): Promise<MirrorResult> {
   }
 
   // 5) 指標・違反 再計算（今回 新規勤務が入ったドライバーのみ＝差分で軽量）。
-  //    勤怠指標は shifts から算出するため、新規 shift が無ければ再計算不要（毎時実行を60s以内に保つ）。
+  //    勤怠指標は shifts から算出するため、新規 shift が無ければ再計算不要（5分ごとの実行を60s以内に保つ）。
   if (affectedDrivers.length) {
-    const m = await recomputeAllMetrics(sb, { driverIds: affectedDrivers });
+    const m = await recomputeAllMetrics(sb, { driverIds: affectedDrivers, sinceWorkDate: cutoff });
     result.recomputed = m.shifts;
   } else {
     result.recomputed = 0;
