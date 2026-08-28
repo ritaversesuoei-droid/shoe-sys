@@ -42,6 +42,7 @@ export interface MirrorResult {
   eventsSkipped?: number;
   dispatchReplaced?: number;
   recomputed?: number;
+  throttled?: boolean; // 直近に実行済みのためスキップ（多重起動抑制）
   note?: string;
 }
 
@@ -61,7 +62,7 @@ function inWindow(dateStr: string | null | undefined, cutoff: string): boolean {
   return d == null || d >= cutoff;
 }
 
-export async function mirrorFromSheets(sb: SB): Promise<MirrorResult> {
+export async function mirrorFromSheets(sb: SB, opts: { force?: boolean } = {}): Promise<MirrorResult> {
   const id = process.env.MIRROR_SHEET_ID?.trim();
   const windowDays = Number(process.env.MIRROR_WINDOW_DAYS ?? "21") || 21;
   const cutoff = addDays(toWorkDate(new Date()), -windowDays);
@@ -70,6 +71,24 @@ export async function mirrorFromSheets(sb: SB): Promise<MirrorResult> {
   if (!id && !dispatchConfigured) {
     return { configured: false, windowDays, note: "MIRROR_SHEET_ID（勤怠ブック）も配車シートも未設定です。" };
   }
+
+  // 多重起動の抑制: 直近 THROTTLE_SEC 内に開始済みならスキップ。ブラウザ側の5分自動起動を
+  //   複数タブ/端末で開いても、GitHub Actions と重なっても、二重取り込みにならないようにする。
+  //   手動「現行から全同期」ボタン(force)は常に実行する。
+  const THROTTLE_SEC = 200;
+  if (!opts.force) {
+    const { data: st } = await sb.from("app_settings").select("value").eq("key", "mirror_state").maybeSingle();
+    const last = (st?.value as { last_started_at?: string } | null)?.last_started_at ?? null;
+    if (last) {
+      const ageSec = (Date.now() - Date.parse(last)) / 1000;
+      if (Number.isFinite(ageSec) && ageSec >= 0 && ageSec < THROTTLE_SEC) {
+        return { configured: true, windowDays, cutoff, throttled: true, note: `直近${Math.round(ageSec)}秒前に実行済のためスキップ` };
+      }
+    }
+  }
+  await sb
+    .from("app_settings")
+    .upsert({ key: "mirror_state", value: { last_started_at: new Date().toISOString() } }, { onConflict: "key" });
 
   const result: MirrorResult = { configured: true, windowDays, cutoff };
   let affectedDrivers: string[] = []; // 今回 新規勤務を入れたドライバー（この人だけ再計算）
