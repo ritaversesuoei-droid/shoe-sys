@@ -9,14 +9,22 @@ export const maxDuration = 60;
 
 /**
  * POST /api/admin/mirror
- *   並行運用ミラー（現行スプレッドシート → shoei-sys）を管理者が手動実行する。
- *   自動（5分ごとの cron）と同じ処理を、今すぐ動かすためのボタン用。
+ *   並行運用ミラー（現行スプレッドシート → shoei-sys）を管理者が実行する。
+ *   - 手動「現行から全同期」ボタン → body {force:true} で常に実行。
+ *   - 盤面の5分自動起動(AutoMirror) → body 無し＝throttle（直近実行済みならスキップ）。
  */
-export async function POST() {
+export async function POST(request: Request) {
   return handle(async () => {
     await requireAdmin();
     const admin = createAdminClient();
-    const result = await mirrorFromSheets(admin);
+    let force = false;
+    try {
+      const body = (await request.json()) as { force?: boolean } | null;
+      force = body?.force === true;
+    } catch {
+      /* body 無し＝自動起動（throttle対象） */
+    }
+    const result = await mirrorFromSheets(admin, { force });
     return ok({ ...result });
   });
 }

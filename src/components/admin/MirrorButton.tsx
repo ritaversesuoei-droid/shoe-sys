@@ -18,7 +18,11 @@ export function MirrorButton() {
     setErr(null);
     setMsg(null);
     try {
-      const res = await fetch("/api/admin/mirror", { method: "POST" });
+      const res = await fetch("/api/admin/mirror", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: true }), // 手動ボタンは throttle を無視して常に実行
+      });
       const d = await res.json();
       if (!d.success) throw new Error(d.error ?? "同期に失敗しました");
       if (d.configured === false) {
