@@ -71,6 +71,51 @@ const EMPTY_ITEM: TimItem = {
   shipper: null, delivery_spot: null, quantity: null, weight: null, cargo_type: null, receipts: null, slip_no: null,
 };
 
+/** カード内の項目別 文字色（時刻=黒／場所=青／荷主=紫／数量=緑／重量=橙／伝票=藍／受領=赤）。 */
+const FIELD = {
+  time: "text-slate-900",
+  place: "text-blue-700",
+  shipper: "text-violet-700",
+  qty: "text-emerald-700",
+  weight: "text-amber-700",
+  slip: "text-indigo-700",
+  receipts: "text-rose-700",
+  other: "text-slate-600",
+} as const;
+
+/** 一覧カードの明細（積込＝数量/重量/伝票、荷卸＝受領書）を項目ごとに色分けして表示。 */
+function Metrics({ e }: { e: TimEvent }) {
+  if (e.type === "loading") {
+    const its = e.items.length ? e.items : [EMPTY_ITEM];
+    return (
+      <span className="flex flex-wrap items-center gap-x-1.5">
+        {its.map((it, i) => (
+          <span key={i} className="flex items-center gap-x-1.5">
+            {i > 0 && <span className="text-slate-300">/</span>}
+            <span className={FIELD.qty}>数{num(it.quantity)}</span>
+            <span className={FIELD.weight}>重{withUnit(num(it.weight), "kg")}</span>
+            <span className={FIELD.slip}>伝{withUnit(num(it.slip_no), "枚")}</span>
+          </span>
+        ))}
+      </span>
+    );
+  }
+  if (e.type === "unloading") {
+    const its = e.items.length ? e.items : [EMPTY_ITEM];
+    return (
+      <span className="flex flex-wrap items-center gap-x-1.5">
+        {its.map((it, i) => (
+          <span key={i} className={FIELD.receipts}>
+            {i > 0 ? "/ " : ""}受領書{withUnit(num(it.receipts), "枚")}
+          </span>
+        ))}
+      </span>
+    );
+  }
+  const txt = itemMetrics(e);
+  return txt ? <span className={FIELD.other}>{txt}</span> : null;
+}
+
 /** 一覧カードの見出し（場所）。荷卸は「完了」対象、積込は「配達先(着地)」を主表示にする。 */
 function placeFor(e: TimEvent): string {
   if (e.type === "unloading") {
@@ -147,7 +192,6 @@ function EventsStrip({ events, name, onOpen }: { events: TimEvent[]; name: strin
             const m = meta(e.type);
             const place = placeFor(e);
             const shipper = shipperFor(e);
-            const metricsStr = itemMetrics(e);
             return (
               <button
                 key={e.id}
@@ -155,14 +199,17 @@ function EventsStrip({ events, name, onOpen }: { events: TimEvent[]; name: strin
                 className={`w-[11.5rem] shrink-0 rounded-lg border-2 px-2 py-1.5 text-left shadow-[2px_2px_0_0_rgba(15,23,42,0.25)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none ${m.cls}`}
                 title={`${m.label} ${e.time}`}
               >
+                {/* 項目ごとに文字色を分ける: カテゴリ名=種別色 / 時刻=黒 / 場所=青 / 荷主=紫 / 数量=緑 / 重量=橙 / 伝票=藍 / 受領=赤 */}
                 <div className="flex items-center gap-1 whitespace-nowrap text-xs font-black tabular-nums">
-                  <span>{m.short} {e.time}</span>
+                  <span>{m.short}</span>
+                  <span className={FIELD.time}>{e.time}</span>
                   {e.photos.length > 0 && <span title="写真あり">📷</span>}
                 </div>
-                {/* カテゴリ色は見出し(短縮名+時刻)に残し、明細は濃色で可読性を上げる（項目ごとに色を分ける） */}
-                {place && <div className="mt-0.5 line-clamp-2 text-[10px] font-bold leading-tight text-slate-800">{place}</div>}
-                {shipper && <div className="line-clamp-1 text-[9px] font-medium leading-tight text-slate-500">荷主: {shipper}</div>}
-                {metricsStr && <div className="mt-0.5 text-[10px] font-bold leading-tight text-slate-700">{metricsStr}</div>}
+                {place && <div className={`mt-0.5 line-clamp-2 text-[10px] font-bold leading-tight ${FIELD.place}`}>{place}</div>}
+                {shipper && <div className={`line-clamp-1 text-[9px] font-bold leading-tight ${FIELD.shipper}`}>荷主: {shipper}</div>}
+                <div className="mt-0.5 text-[10px] font-bold leading-tight">
+                  <Metrics e={e} />
+                </div>
               </button>
             );
           })
