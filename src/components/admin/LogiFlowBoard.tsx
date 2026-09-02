@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useBoardZoom } from "@/components/admin/useBoardZoom";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { LFDriver, LFJob } from "@/lib/operations/logiflow";
 
@@ -48,6 +49,7 @@ export function LogiFlowBoard({
   now: string; // サーバのデータ取得時刻(ISO)。更新/自動反映のたびに再描画で更新される
 }) {
   const router = useRouter();
+  const { control: zoomControl, wrapStyle } = useBoardZoom("logiflow");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [drag, setDrag] = useState<{ id: string; driverKey: string; col: ColKind } | null>(null);
@@ -170,6 +172,7 @@ export function LogiFlowBoard({
           <span className={`h-2 w-2 rounded-full ${live ? "bg-green-500" : "bg-slate-300"}`} /> 自動反映
         </span>
         <span className={`text-[10px] ${confirmed ? "text-red-100" : "text-slate-400"}`} title="この画面のデータを取得した時刻（更新・自動反映で更新）">最終更新 {jstStamp(now)}</span>
+        {zoomControl}
         <div className="ml-auto flex items-center gap-2">
           {/* 確定 / 確定解除：配車表のタイトル帯も赤/通常に切替 */}
           <button
@@ -205,6 +208,7 @@ export function LogiFlowBoard({
       )}
       {err && <p className="mb-2 rounded bg-red-50 p-2 text-sm text-red-600 no-print">{err}</p>}
 
+      <div style={wrapStyle}>
       <div className="overflow-x-auto rounded-lg border-2 border-black bg-white">
         {/* ヘッダ */}
         <div className="grid min-w-[1100px] grid-cols-[130px_minmax(130px,max-content)_minmax(0,1fr)_200px] border-b-2 border-black bg-black text-center text-[10px] font-bold text-white">
@@ -237,6 +241,7 @@ export function LogiFlowBoard({
             </div>
           ))
         )}
+      </div>
       </div>
 
       <p className="mt-2 text-xs text-slate-400 no-print">
