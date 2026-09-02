@@ -149,7 +149,8 @@ export function LogiFlowBoard({
 
   return (
     <main className="min-h-dvh bg-slate-100 p-3">
-      <style>{`@media print { nav{display:none!important;} .no-print{display:none!important;} @page{size:A4 landscape;margin:6mm;} main{padding:0!important;background:#fff!important;} }`}</style>
+      {/* @page に size/orientation を固定しない＝印刷ダイアログで縦/横を選べる（横固定の解消） */}
+      <style>{`@media print { nav{display:none!important;} .no-print{display:none!important;} @page{margin:6mm;} main{padding:0!important;background:#fff!important;} }`}</style>
 
       {/* タイトル帯: 確定でこの帯が赤くなる（配車表と同期） */}
       <div className={`mb-2 flex flex-wrap items-center gap-3 rounded-lg px-3 py-1.5 no-print ${confirmed ? "bg-red-600 text-white" : "bg-white"}`}>

@@ -159,9 +159,10 @@ function EventsStrip({ events, name, onOpen }: { events: TimEvent[]; name: strin
                   <span>{m.short} {e.time}</span>
                   {e.photos.length > 0 && <span title="写真あり">📷</span>}
                 </div>
-                {place && <div className="mt-0.5 line-clamp-2 text-[10px] font-medium leading-tight opacity-80">{place}</div>}
-                {shipper && <div className="line-clamp-1 text-[9px] font-medium leading-tight opacity-60">荷主: {shipper}</div>}
-                {metricsStr && <div className="mt-0.5 text-[10px] font-bold leading-tight">{metricsStr}</div>}
+                {/* カテゴリ色は見出し(短縮名+時刻)に残し、明細は濃色で可読性を上げる（項目ごとに色を分ける） */}
+                {place && <div className="mt-0.5 line-clamp-2 text-[10px] font-bold leading-tight text-slate-800">{place}</div>}
+                {shipper && <div className="line-clamp-1 text-[9px] font-medium leading-tight text-slate-500">荷主: {shipper}</div>}
+                {metricsStr && <div className="mt-0.5 text-[10px] font-bold leading-tight text-slate-700">{metricsStr}</div>}
               </button>
             );
           })
@@ -234,7 +235,7 @@ export function TimBoard({
   const overLimit = lineLimit != null && lineSent >= lineLimit;
 
   return (
-    <main className="mx-auto max-w-7xl p-2 sm:p-4">
+    <main className="w-full p-2 sm:p-4">
       {/* ヘッダ（現行 T・I・M 風・ポップ） */}
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-4 border-slate-900 bg-yellow-300 p-3 shadow-[4px_4px_0_0_#0f172a]">
         <div className="flex items-center gap-3">
