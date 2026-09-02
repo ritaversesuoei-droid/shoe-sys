@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useBoardZoom } from "@/components/admin/useBoardZoom";
 import type { TimRow, TimEvent, TimItem } from "@/lib/operations/tim-board";
 
 /** イベント種別 → 見た目（現行GAS T・I・M の配色を踏襲）。label=詳細用の正式名、short=一覧用。 */
@@ -237,6 +238,7 @@ export function TimBoard({
   now: string; // サーバのデータ取得時刻(ISO)。更新/自動反映のたびに再描画で更新される
 }) {
   const router = useRouter();
+  const { control: zoomControl, wrapStyle } = useBoardZoom("tim");
   const [detail, setDetail] = useState<{ ev: TimEvent; name: string } | null>(null);
   const [live, setLive] = useState(false);
 
@@ -335,8 +337,10 @@ export function TimBoard({
         </span>
         <span className="text-slate-400" title="この画面のデータを取得した時刻（更新・自動反映で更新）">最終更新 {jstStamp(now)}</span>
         <span>稼働 {rows.filter((r) => r.status === "working").length} / 終業 {rows.filter((r) => r.status === "finished").length} / 未出勤 {rows.filter((r) => r.status === "absent").length} / 全 {rows.length} 名</span>
+        <span className="ml-auto">{zoomControl}</span>
       </div>
 
+      <div style={wrapStyle}>
       {rows.length === 0 ? (
         <p className="rounded-xl border-2 border-dashed border-slate-300 p-10 text-center text-slate-400">{label} の打刻はまだありません</p>
       ) : (
@@ -363,6 +367,7 @@ export function TimBoard({
           })}
         </div>
       )}
+      </div>
 
       <p className="mt-3 text-xs text-slate-400">
         現行「T・I・M 運行管理パネル」の再現。行＝ドライバー、右が最新の打刻（左へスクロールで遡れます）。打刻をタップで詳細。打刻された瞬間に自動反映。

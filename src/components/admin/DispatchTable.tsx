@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useBoardZoom } from "@/components/admin/useBoardZoom";
 
 /** 配車表 1行ぶんのデータ（dispatch_plans を画面用に平坦化）。 */
 export interface DispatchRow {
@@ -36,6 +37,7 @@ function jstStamp(iso: string): string {
 
 export function DispatchTable({ date, rows, confirmed, now }: { date: string; rows: DispatchRow[]; confirmed: boolean; now: string }) {
   const router = useRouter();
+  const { control: zoomControl, wrapStyle } = useBoardZoom("dispatch");
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -144,6 +146,7 @@ export function DispatchTable({ date, rows, confirmed, now }: { date: string; ro
           {live ? "自動反映中（即時）" : "自動更新中"}
         </span>
         <span className="text-[10px] text-slate-400" title="この画面のデータを取得した時刻（更新・自動反映で更新）">最終更新 {jstStamp(now)}</span>
+        {zoomControl}
         {busy && <span className="text-xs font-bold text-emerald-600">保存中…</span>}
         {editing && (
           <div className="ml-auto flex items-center gap-2">
@@ -161,6 +164,7 @@ export function DispatchTable({ date, rows, confirmed, now }: { date: string; ro
       )}
       {err && <p className="mb-3 rounded bg-red-50 p-2 text-sm text-red-600 print:hidden">{err}</p>}
 
+      <div style={wrapStyle}>
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center text-slate-400">
           {date} の配車データがありません
@@ -233,6 +237,7 @@ export function DispatchTable({ date, rows, confirmed, now }: { date: string; ro
           </div>
         </>
       )}
+      </div>
 
       <p className="mt-3 text-xs text-slate-400 print:hidden">
         全{rows.length}件（自社{own} / 子車{sub}）
