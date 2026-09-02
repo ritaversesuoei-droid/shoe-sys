@@ -207,7 +207,7 @@ export function LogiFlowBoard({
 
       <div className="overflow-x-auto rounded-lg border-2 border-black bg-white">
         {/* ヘッダ */}
-        <div className="grid min-w-[1100px] grid-cols-[130px_minmax(130px,max-content)_1fr_200px] border-b-2 border-black bg-black text-center text-[10px] font-bold text-white">
+        <div className="grid min-w-[1100px] grid-cols-[130px_minmax(130px,max-content)_minmax(0,1fr)_200px] border-b-2 border-black bg-black text-center text-[10px] font-bold text-white">
           <div className="border-r border-slate-600 p-2">DRIVER</div>
           <div className="border-r border-slate-600 p-2">AM（前日継続）</div>
           <div className="border-r border-slate-600 p-2">当日フロー（{mdw(date).text}）</div>
@@ -218,7 +218,7 @@ export function LogiFlowBoard({
           <p className="p-10 text-center text-slate-400">{date} の配車はありません</p>
         ) : (
           drivers.map((d) => (
-            <div key={d.key} className="grid min-w-[1100px] grid-cols-[130px_minmax(130px,max-content)_1fr_200px] border-b-2 border-black">
+            <div key={d.key} className="grid min-w-[1100px] grid-cols-[130px_minmax(130px,max-content)_minmax(0,1fr)_200px] border-b-2 border-black">
               {/* ドライバー情報 */}
               <div className="flex flex-col items-center justify-center border-r-2 border-black bg-slate-50 p-1 text-center">
                 <span className="text-[8px] text-slate-400">{d.belong}</span>
