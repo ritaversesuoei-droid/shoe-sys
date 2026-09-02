@@ -43,7 +43,7 @@ export async function getLogiFlowBoard(sb: SB, dateStr: string): Promise<LFBoard
   const { data, error } = await sb
     .from("dispatch_plans")
     .select(
-      "id, plan_date, arrival_date, driver_id, driver_name_raw, vehicle_no, shipper, origin_spot, delivery_spot, arrival_time, highway_instruction, sort_no, is_subcontract, drivers(name, code, default_vehicle_no)",
+      "id, plan_date, arrival_date, driver_id, driver_name_raw, vehicle_no, shipper, origin_spot, delivery_spot, arrival_time, highway_instruction, sort_no, is_subcontract, drivers(name, code, default_vehicle_no, affiliation, manage_attendance)",
     )
     .or(`plan_date.eq.${dateStr},arrival_date.eq.${dateStr}`)
     .order("sort_no", { ascending: true, nullsFirst: false });
@@ -54,22 +54,38 @@ export async function getLogiFlowBoard(sb: SB, dateStr: string): Promise<LFBoard
   let totalJobs = 0;
 
   for (const r of rows) {
-    const drv = r.drivers as { name: string; code: string; default_vehicle_no: string | null } | null;
+    const drv = r.drivers as {
+      name: string;
+      code: string;
+      default_vehicle_no: string | null;
+      affiliation: string | null;
+      manage_attendance: boolean | null;
+    } | null;
     const name = (drv?.name ?? r.driver_name_raw ?? "（ドライバー未定）").trim();
-    let d = map.get(name);
+    // 集約キーは空白・全半角の揺れを正規化する。名前そのままだと、案件追加(driver_name_raw)と
+    //   既存行(driver_id経由のマスタ名)で空白差があるだけで別行に分裂し、行が下へ移動して見える。
+    const mk = name.normalize("NFKC").replace(/\s/g, "") || "x";
+    let d = map.get(mk);
     if (!d) {
+      // 乗務員名の上は「所属＝会社名」を表示する。affiliation に社名があればそれを、無ければ
+      //   自社→昭栄運輸 / 協力→協力（協力店社名はマスタ未入力の行が多いため後追い可）。
+      const aff = (drv?.affiliation ?? "").trim();
+      const isCoop = r.is_subcontract || drv?.manage_attendance === false;
+      const belong = aff && aff !== "自社" && aff !== "協力" ? aff : isCoop ? "協力" : "昭栄運輸";
       d = {
         key: name.replace(/\s/g, "") || "x",
         name,
         code: drv?.code ?? null,
-        belong: r.is_subcontract ? "協力" : "自社",
+        belong,
         vehicle: null,
         amJobs: [],
         jobs: [],
         nextDayJobs: [],
       };
-      map.set(name, d);
+      map.set(mk, d);
     }
+    // 後続行に driver_id 経由の code があれば補完（先頭が案件追加のcode=null行でも並び順を安定させる）
+    if (d.code == null && drv?.code) d.code = drv.code;
     if (!d.vehicle) d.vehicle = r.vehicle_no ?? drv?.default_vehicle_no ?? null;
 
     const job: LFJob = {
