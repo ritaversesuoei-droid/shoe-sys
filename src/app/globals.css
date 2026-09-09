@@ -25,3 +25,11 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* 盤面の表示サイズ(zoom)は画面用。印刷時は等倍・全幅に戻す（前回選択サイズで印刷が拡大/縮小・はみ出すのを防ぐ）。 */
+@media print {
+  .board-zoom {
+    zoom: 1 !important;
+    width: 100% !important;
+  }
+}

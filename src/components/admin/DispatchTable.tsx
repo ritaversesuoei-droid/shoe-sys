@@ -164,7 +164,7 @@ export function DispatchTable({ date, rows, confirmed, now }: { date: string; ro
       )}
       {err && <p className="mb-3 rounded bg-red-50 p-2 text-sm text-red-600 print:hidden">{err}</p>}
 
-      <div style={wrapStyle}>
+      <div className="board-zoom" style={wrapStyle}>
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center text-slate-400">
           {date} の配車データがありません

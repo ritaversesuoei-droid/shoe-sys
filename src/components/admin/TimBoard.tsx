@@ -179,9 +179,12 @@ function mapUrlForEvent(e: TimEvent): string | null {
 /** ドライバー1行ぶんの打刻ストリップ。最新が右端＝初期表示で右端までスクロールし、左へ遡れる。 */
 function EventsStrip({ events, name, onOpen }: { events: TimEvent[]; name: string; onOpen: (d: { ev: TimEvent; name: string }) => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const prevLen = useRef(0);
   useEffect(() => {
     const el = ref.current;
-    if (el) el.scrollLeft = el.scrollWidth; // 最新（右端）を表示
+    // 初回、またはこの行に新しい打刻が増えた時だけ右端へ寄せる（他ドライバーの更新で手動スクロールを破棄しない）。
+    if (el && events.length > prevLen.current) el.scrollLeft = el.scrollWidth;
+    prevLen.current = events.length;
   }, [events]);
   return (
     <div ref={ref} className="flex-1 overflow-x-auto bg-slate-50 px-2 py-2">
@@ -340,7 +343,7 @@ export function TimBoard({
         <span className="ml-auto">{zoomControl}</span>
       </div>
 
-      <div style={wrapStyle}>
+      <div className="board-zoom" style={wrapStyle}>
       {rows.length === 0 ? (
         <p className="rounded-xl border-2 border-dashed border-slate-300 p-10 text-center text-slate-400">{label} の打刻はまだありません</p>
       ) : (
