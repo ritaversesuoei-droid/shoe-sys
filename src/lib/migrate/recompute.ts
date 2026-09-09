@@ -38,7 +38,7 @@ export async function recomputeAllMetrics(
   const restButtonOn = (featRow?.value as { rest_button?: boolean } | null)?.rest_button === true;
   // driverIds 指定時はそのドライバーのみ再計算（差分ミラーの高速化用。
   //   週次・前勤務休息の文脈は各ドライバーの全勤務を辿るため精度は保たれる）。
-  let dq = sb.from("drivers").select("id");
+  let dq = sb.from("drivers").select("id, manage_attendance");
   if (opts.driverIds?.length) dq = dq.in("id", opts.driverIds);
   const { data: drivers, error } = await dq;
   if (error) throw error;
@@ -70,11 +70,14 @@ export async function recomputeAllMetrics(
       evsByShift.set(e.shift_id, arr);
     }
 
+    // 協力店社(manage_attendance=false)は違反判定しない（closeShiftと同挙動・打刻/指標は残す）。
+    const manageAtt = d.manage_attendance !== false;
     // pass1: 全勤務の指標・判定を計算（前勤務退勤・週次拡張回数の文脈をスレッド）。書き込みは後段。
     type Computed = { s: (typeof shifts)[number]; metrics: ShiftMetrics; judgement: ShiftJudgement; write: boolean };
     const computed: Computed[] = [];
     let prevOut: string | null = null;
     const weekExt = new Map<string, number>();
+    const ferryCap = config.special_cases.ferry.credit_cap_min;
     for (const s of shifts) {
       const breaks = pairBreakEvents(evsByShift.get(s.id) ?? []);
       const metrics = calcShiftMetrics(
@@ -86,10 +89,22 @@ export async function recomputeAllMetrics(
       const continuousDriveMin = restButtonOn
         ? maxContinuousDriveMin(s.clock_in_at, s.clock_out_at, breaks, config) ?? undefined
         : undefined;
-      const judgement = judgeShift(metrics, config, { extendedCountThisWeek: ext, continuousDriveMin });
+      // 特例(2人乗務/フェリー/分割休息)は closeShift と同様に workMode で適用する（未指定だと標準判定で誤判定）。
+      const workMode = {
+        crewType: (s.crew_type === "double" ? "double" : "single") as "single" | "double",
+        ferryMin: s.ferry_min ?? 0,
+        splitRest: s.split_rest === true,
+      };
+      const judgement = manageAtt
+        ? judgeShift(metrics, config, { extendedCountThisWeek: ext, continuousDriveMin }, workMode)
+        : { items: [], alertTypes: [], hasViolation: false };
       // 書き込みは対象期間の勤務だけに絞る（差分ミラーの高速化。文脈は全勤務を辿って正しく積む）。
       computed.push({ s, metrics, judgement, write: !opts.sinceWorkDate || s.work_date >= opts.sinceWorkDate });
-      if (metrics.restraintMin != null && metrics.restraintMin > config.daily_restraint.extended_threshold_min) {
+      // 14h超ラダーの母数は judgeShift と同基準に揃える: 2人乗務は除外・フェリー控除後(effRestraint)で数える。
+      const ferryRaw = Math.max(0, Math.round(s.ferry_min ?? 0));
+      const ferry = ferryCap > 0 ? Math.min(ferryRaw, ferryCap) : ferryRaw;
+      const eff = Math.max(0, (metrics.restraintMin ?? 0) - ferry);
+      if (s.crew_type !== "double" && eff > config.daily_restraint.extended_threshold_min) {
         weekExt.set(wk, ext + 1);
       }
       prevOut = s.clock_out_at;
@@ -98,11 +113,13 @@ export async function recomputeAllMetrics(
     // ③ 分割休息の合計判定: 連続する split_rest 勤務を1グループにまとめ、合計10/12h未満・分割数超過を
     //    グループ末尾の勤務へ違反として付与（各セグメントの3h下限は per-shift の rest_period で別途）。
     //    ※グループの括り方は運用解釈のため要社労士確認。split_rest が無い通常運用では発火しない。
-    {
+    if (manageAtt) {
       let group: Computed[] = [];
       const flush = () => {
-        if (group.length >= 2) {
-          const r = evaluateSplitRestTotal(group.map((c) => c.metrics.restPeriodMin ?? 0), config);
+        // 前勤務なし(restPeriodMin=null)のセグメントは合計から除外（0換算での過少評価＝偽陽性を防ぐ）。
+        const segs = group.map((c) => c.metrics.restPeriodMin).filter((v): v is number => v != null);
+        if (segs.length >= 2) {
+          const r = evaluateSplitRestTotal(segs, config);
           if (!r.ok) {
             const last = group[group.length - 1]!;
             last.judgement.items.push({

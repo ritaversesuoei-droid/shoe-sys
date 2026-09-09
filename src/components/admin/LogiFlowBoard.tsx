@@ -208,7 +208,7 @@ export function LogiFlowBoard({
       )}
       {err && <p className="mb-2 rounded bg-red-50 p-2 text-sm text-red-600 no-print">{err}</p>}
 
-      <div style={wrapStyle}>
+      <div className="board-zoom" style={wrapStyle}>
       <div className="overflow-x-auto rounded-lg border-2 border-black bg-white">
         {/* ヘッダ */}
         <div className="grid min-w-[1100px] grid-cols-[130px_minmax(130px,max-content)_minmax(0,1fr)_200px] border-b-2 border-black bg-black text-center text-[10px] font-bold text-white">

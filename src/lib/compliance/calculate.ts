@@ -107,11 +107,19 @@ export function calcShiftMetrics(
     restraintMin == null ? null : Math.max(0, restraintMin - input.restMin);
   // ② 深夜労働: 拘束スパンの深夜(22-5)分から、深夜にかかった休憩分を控除する。
   //   休憩区間(打刻)がある場合のみ控除（手入力＝区間なしなら従来どおり控除しない）。
+  //   休憩区間は拘束スパン[clockIn, clockOut]にクリップしてから深夜分を計算（打刻はみ出しでの過剰控除を防ぐ）。
   const rawNightMin = calcNightMinutes(input.clockInAt, clockOutAt, config);
-  const nightBreakMin = (input.breaks ?? []).reduce(
-    (sum, b) => sum + calcNightMinutes(b.startIso, b.endIso, config),
-    0,
-  );
+  const inMsN = Date.parse(input.clockInAt ?? "");
+  const outMsN = Date.parse(clockOutAt ?? "");
+  const nightBreakMin = (input.breaks ?? []).reduce((sum, b) => {
+    const bs = Date.parse(b.startIso);
+    const be = Date.parse(b.endIso);
+    if (Number.isNaN(bs) || Number.isNaN(be)) return sum;
+    const cs = Number.isNaN(inMsN) ? bs : Math.max(bs, inMsN);
+    const ce = Number.isNaN(outMsN) ? be : Math.min(be, outMsN);
+    if (ce <= cs) return sum;
+    return sum + calcNightMinutes(new Date(cs).toISOString(), new Date(ce).toISOString(), config);
+  }, 0);
   const nightMin = Math.max(0, rawNightMin - nightBreakMin);
   const restPeriodMin = diffMinutes(input.prevClockOutAt, input.clockInAt);
   return { restraintMin, laborMin, nightMin, restPeriodMin };
