@@ -26,7 +26,7 @@ export const DEFAULT_COMPLIANCE_CONFIG: ComplianceConfig = {
   // 公知の2024年告示値（要社労士確認）。該当勤務のみ適用。
   special_cases: {
     two_person: { max_restraint_min: 1200, min_rest_period_min: 240 }, // 拘束20h / 休息4h
-    split_rest: { min_segment_min: 180, min_total_min: 600, max_splits: 3 }, // 1回3h以上 / 合計10h以上
+    split_rest: { min_segment_min: 180, min_total_min: 600, min_total_3_min: 720, max_splits: 3 }, // 1回3h以上 / 2分割計10h / 3分割計12h
     ferry: { credit_cap_min: 0 }, // 0=控除上限なし
   },
 };
