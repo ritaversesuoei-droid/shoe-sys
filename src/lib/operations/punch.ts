@@ -33,6 +33,7 @@ export interface PunchInput {
   note?: string;
   items?: PunchItem[];
   photo_paths?: string[];
+  split_rest?: boolean; // 長距離再出発: 直前の休息が分割休息だったか
 }
 
 export interface PunchResult {
@@ -90,6 +91,11 @@ export async function processPunch(
   if (OPENS_SHIFT.includes(input.event_type)) {
     openedShift = await openShift(sb, driverId, input.occurred_at);
     shiftId = openedShift.id;
+    // 長距離再出発で「分割休息」がチェックされたら、この勤務(=直前の休息の後に始まる勤務)の
+    //   split_rest を立てる。退勤時の休息期間判定で1回3h以上の分割休息下限が適用される。
+    if (input.event_type === "leg_departure" && input.split_rest === true) {
+      await sb.from("shifts").update({ split_rest: true }).eq("id", openedShift.id);
+    }
   } else {
     shiftId = open?.id ?? null;
   }

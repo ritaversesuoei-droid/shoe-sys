@@ -43,6 +43,8 @@ export const createEventSchema = z.object({
   items: z.array(eventItemSchema).max(3).optional(),
   // 写真は別途 Storage アップロード後にパスを渡す想定
   photo_paths: z.array(z.string()).optional(),
+  // 長距離再出発: 直前の休息が分割休息だったか（当該勤務の split_rest を立てる）
+  split_rest: z.boolean().optional(),
 });
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 

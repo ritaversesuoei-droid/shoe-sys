@@ -93,6 +93,7 @@ export function PunchForm({
   const [chkWork, setChkWork] = useState(false); // 荷下ろし作業あり
   const [receipts, setReceipts] = useState("");
   const [roundTrip, setRoundTrip] = useState(false);
+  const [splitRest, setSplitRest] = useState(false); // 長距離再出発: 直前の休息が分割休息だったか
 
   // 冪等キーは「フォーム操作1回」に固定する。submit 内で毎回 randomUUID すると、
   //   二度押しや失敗後リトライで別キーになりサーバの冪等判定が効かず重複打刻になる。
@@ -214,6 +215,8 @@ export function PunchForm({
         lng: coords?.lng,
         // 長距離（写真モード）は撮影＝アルコールチェック実施とみなす
         alcohol_checked: cfg.alcohol ? true : undefined,
+        // 長距離再出発: 直前の休息が分割休息だったか（当該勤務の split_rest を立てる）
+        split_rest: type === "leg_departure" && splitRest ? true : undefined,
         checks: mode === "unload" ? unloadChecks : undefined,
         note: mode === "detail" || mode === "unload" ? note || undefined : undefined,
         items:
@@ -344,6 +347,22 @@ export function PunchForm({
             <p className="text-lg font-bold text-amber-800">📷 アルコールチェック</p>
             <p className="mt-1 text-sm text-amber-700">撮影、またはライブラリーから選択して送信してください</p>
           </div>
+          {type === "leg_departure" && (
+            <label className="flex items-start gap-3 rounded-2xl border-2 border-violet-300 bg-violet-50 p-4 text-left active:scale-[0.99]">
+              <input
+                type="checkbox"
+                checked={splitRest}
+                onChange={(e) => setSplitRest(e.target.checked)}
+                className="mt-0.5 h-6 w-6 flex-none accent-violet-600"
+              />
+              <span className="text-sm font-bold text-violet-900">
+                分割休息だった
+                <span className="mt-0.5 block text-xs font-normal text-violet-700">
+                  直前の休息を「分割休息」（1回3時間以上に分けて取得）で取った場合にチェック。通常の休息（連続9時間以上）ならチェック不要。
+                </span>
+              </span>
+            </label>
+          )}
           {previews.length > 0 && (
             <div className="flex flex-wrap justify-center gap-2">
               {previews.map((src, i) => (
