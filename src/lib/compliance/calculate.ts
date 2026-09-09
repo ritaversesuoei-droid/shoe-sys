@@ -117,6 +117,34 @@ export function calcShiftMetrics(
   return { restraintMin, laborMin, nightMin, restPeriodMin };
 }
 
+export interface SplitRestTotalResult {
+  segments: number;
+  totalMin: number;
+  requiredMin: number;
+  exceedsSplits: boolean;
+  ok: boolean;
+}
+
+/**
+ * 分割休息グループの「合計」判定（③）。連続する分割休息の休息セグメント分数の配列を受け取り、
+ *   2分割→合計10h(min_total_min) / 3分割→合計12h(min_total_3_min) を満たすか判定する。
+ *   各セグメントの「1回3h以上」は per-shift の rest_period 判定で別途扱う。max_splits 超過も違反。
+ *   ※「どこからどこまでを1グループとするか（連続する split_rest 勤務）」は運用解釈のため要社労士確認。
+ *   segments<2 は合計判定なし（単一の分割指定は per-segment のみ）。
+ */
+export function evaluateSplitRestTotal(
+  segmentRestMins: number[],
+  config: ComplianceConfig,
+): SplitRestTotalResult {
+  const sc = config.special_cases.split_rest;
+  const segments = segmentRestMins.length;
+  const totalMin = segmentRestMins.reduce((a, b) => a + b, 0);
+  const requiredMin = segments >= 3 ? sc.min_total_3_min : sc.min_total_min;
+  const exceedsSplits = segments > sc.max_splits;
+  const ok = segments < 2 ? true : totalMin >= requiredMin && !exceedsSplits;
+  return { segments, totalMin, requiredMin, exceedsSplits, ok };
+}
+
 export interface JudgeContext {
   /** 当該週で既に「14h超(extended_threshold)」となった回数（週2回まで目安の判定用） */
   extendedCountThisWeek?: number;

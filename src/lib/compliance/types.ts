@@ -34,7 +34,7 @@ export interface ComplianceConfig {
    */
   special_cases: {
     two_person: { max_restraint_min: number; min_rest_period_min: number };
-    split_rest: { min_segment_min: number; min_total_min: number; max_splits: number };
+    split_rest: { min_segment_min: number; min_total_min: number; min_total_3_min: number; max_splits: number };
     ferry: { credit_cap_min: number }; // 休息として控除できる上限（0=上限なし）
   };
 }

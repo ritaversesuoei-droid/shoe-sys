@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/types/database";
-import { loadComplianceConfig, calcShiftMetrics, judgeShift, maxContinuousDriveMin } from "@/lib/compliance";
+import { loadComplianceConfig, calcShiftMetrics, judgeShift, maxContinuousDriveMin, evaluateSplitRestTotal } from "@/lib/compliance";
+import type { ShiftMetrics, ShiftJudgement } from "@/lib/compliance";
 import { pairBreakEvents } from "@/lib/operations/shift";
 
 type SB = SupabaseClient<Database>;
@@ -69,19 +70,15 @@ export async function recomputeAllMetrics(
       evsByShift.set(e.shift_id, arr);
     }
 
+    // pass1: 全勤務の指標・判定を計算（前勤務退勤・週次拡張回数の文脈をスレッド）。書き込みは後段。
+    type Computed = { s: (typeof shifts)[number]; metrics: ShiftMetrics; judgement: ShiftJudgement; write: boolean };
+    const computed: Computed[] = [];
     let prevOut: string | null = null;
     const weekExt = new Map<string, number>();
-
     for (const s of shifts) {
       const breaks = pairBreakEvents(evsByShift.get(s.id) ?? []);
       const metrics = calcShiftMetrics(
-        {
-          clockInAt: s.clock_in_at,
-          clockOutAt: s.clock_out_at,
-          restMin: intervalToMin(s.rest_time),
-          prevClockOutAt: prevOut,
-          breaks,
-        },
+        { clockInAt: s.clock_in_at, clockOutAt: s.clock_out_at, restMin: intervalToMin(s.rest_time), prevClockOutAt: prevOut, breaks },
         config,
       );
       const wk = weekStart(s.work_date);
@@ -90,57 +87,83 @@ export async function recomputeAllMetrics(
         ? maxContinuousDriveMin(s.clock_in_at, s.clock_out_at, breaks, config) ?? undefined
         : undefined;
       const judgement = judgeShift(metrics, config, { extendedCountThisWeek: ext, continuousDriveMin });
-
-      // 前勤務退勤・週次拡張回数の文脈は全勤務を辿って正しく積むが、DB書き込みは対象期間の勤務だけに絞る。
-      //   （sinceWorkDate 指定時＝差分ミラー。全履歴を毎回書き戻すと件数×2クエリで60s超過するのを防ぐ。
-      //    古い勤務は既に指標が保存済みで、ここでは読み取りだけ＝文脈シードに使う。）
-      const write = !opts.sinceWorkDate || s.work_date >= opts.sinceWorkDate;
-      if (write) {
-        const warnR =
-          judgement.items.find((i) => i.type === "restraint" && i.severity !== "info")?.message ?? null;
-        const warnRest =
-          judgement.items.find((i) => i.type === "rest_period" && i.severity !== "info")?.message ?? null;
-
-        await sb
-          .from("shifts")
-          .update({
-            restraint_min: metrics.restraintMin,
-            labor_min: metrics.laborMin,
-            night_min: metrics.nightMin,
-            rest_period_min: metrics.restPeriodMin,
-            warn_restraint: warnR,
-            warn_rest: warnRest,
-          })
-          .eq("id", s.id);
-
-        if (judgement.alertTypes.length > 0) {
-          await sb.from("compliance_alerts").upsert(
-            {
-              shift_id: s.id,
-              driver_id: s.driver_id,
-              work_date: s.work_date,
-              month_key: s.month_key,
-              alert_types: judgement.alertTypes,
-              restraint_min: metrics.restraintMin,
-              labor_min: metrics.laborMin,
-              rest_period_min: metrics.restPeriodMin,
-              night_min: metrics.nightMin,
-              detail: judgement.items as unknown as Json,
-              status: "open",
-            },
-            { onConflict: "shift_id" },
-          );
-          alertCount += 1;
-        } else {
-          await sb.from("compliance_alerts").delete().eq("shift_id", s.id);
-        }
-        shiftCount += 1;
-      }
-
+      // 書き込みは対象期間の勤務だけに絞る（差分ミラーの高速化。文脈は全勤務を辿って正しく積む）。
+      computed.push({ s, metrics, judgement, write: !opts.sinceWorkDate || s.work_date >= opts.sinceWorkDate });
       if (metrics.restraintMin != null && metrics.restraintMin > config.daily_restraint.extended_threshold_min) {
         weekExt.set(wk, ext + 1);
       }
       prevOut = s.clock_out_at;
+    }
+
+    // ③ 分割休息の合計判定: 連続する split_rest 勤務を1グループにまとめ、合計10/12h未満・分割数超過を
+    //    グループ末尾の勤務へ違反として付与（各セグメントの3h下限は per-shift の rest_period で別途）。
+    //    ※グループの括り方は運用解釈のため要社労士確認。split_rest が無い通常運用では発火しない。
+    {
+      let group: Computed[] = [];
+      const flush = () => {
+        if (group.length >= 2) {
+          const r = evaluateSplitRestTotal(group.map((c) => c.metrics.restPeriodMin ?? 0), config);
+          if (!r.ok) {
+            const last = group[group.length - 1]!;
+            last.judgement.items.push({
+              type: "split_rest",
+              severity: "violation",
+              message: r.exceedsSplits
+                ? `分割休息の分割回数が上限(${config.special_cases.split_rest.max_splits}回)を超過（${r.segments}分割）`
+                : `分割休息の合計が下限(${Math.round(r.requiredMin / 60)}h)未満（${r.segments}分割・実${Math.round((r.totalMin / 60) * 10) / 10}h）`,
+              actualMin: r.totalMin,
+              thresholdMin: r.requiredMin,
+            });
+            if (!last.judgement.alertTypes.includes("split_rest")) last.judgement.alertTypes.push("split_rest");
+          }
+        }
+        group = [];
+      };
+      for (const c of computed) {
+        if (c.s.split_rest === true) group.push(c);
+        else flush();
+      }
+      flush();
+    }
+
+    // pass2: 書き込み（対象期間の勤務のみ）。
+    for (const { s, metrics, judgement, write } of computed) {
+      if (!write) continue;
+      const warnR = judgement.items.find((i) => i.type === "restraint" && i.severity !== "info")?.message ?? null;
+      const warnRest = judgement.items.find((i) => i.type === "rest_period" && i.severity !== "info")?.message ?? null;
+      await sb
+        .from("shifts")
+        .update({
+          restraint_min: metrics.restraintMin,
+          labor_min: metrics.laborMin,
+          night_min: metrics.nightMin,
+          rest_period_min: metrics.restPeriodMin,
+          warn_restraint: warnR,
+          warn_rest: warnRest,
+        })
+        .eq("id", s.id);
+      if (judgement.alertTypes.length > 0) {
+        await sb.from("compliance_alerts").upsert(
+          {
+            shift_id: s.id,
+            driver_id: s.driver_id,
+            work_date: s.work_date,
+            month_key: s.month_key,
+            alert_types: judgement.alertTypes,
+            restraint_min: metrics.restraintMin,
+            labor_min: metrics.laborMin,
+            rest_period_min: metrics.restPeriodMin,
+            night_min: metrics.nightMin,
+            detail: judgement.items as unknown as Json,
+            status: "open",
+          },
+          { onConflict: "shift_id" },
+        );
+        alertCount += 1;
+      } else {
+        await sb.from("compliance_alerts").delete().eq("shift_id", s.id);
+      }
+      shiftCount += 1;
     }
   }
   return { shifts: shiftCount, alerts: alertCount };

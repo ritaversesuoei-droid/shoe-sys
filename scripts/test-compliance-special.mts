@@ -2,7 +2,7 @@
  * 改善基準告示の特例（2人乗務 / フェリー / 分割休息）判定 ユニットテスト（純関数・DB不要）。
  * 実行: npm run test:compliance-special
  */
-import { judgeShift, calcShiftMetrics, maxContinuousDriveMin } from "@/lib/compliance/calculate";
+import { judgeShift, calcShiftMetrics, maxContinuousDriveMin, evaluateSplitRestTotal } from "@/lib/compliance/calculate";
 import { DEFAULT_COMPLIANCE_CONFIG as CFG } from "@/lib/compliance/config";
 import type { ShiftMetrics, ShiftWorkMode } from "@/lib/compliance/types";
 
@@ -84,6 +84,14 @@ check("休憩なし5hは300分", cd3 === 300, cd3);
 check("continuousDriveMin=300で430警告", hasWarn(judgeShift(m({ restraintMin: 300 }), CFG, { continuousDriveMin: 300 }), "continuous_drive"));
 check("continuousDriveMin=240ちょうどは警告なし", !hasWarn(judgeShift(m({ restraintMin: 300 }), CFG, { continuousDriveMin: 240 }), "continuous_drive"));
 check("continuousDriveMin未指定(手入力)は430判定しない", !judgeShift(m({ restraintMin: 900 }), CFG, {}).items.some((i) => i.type === "continuous_drive"));
+
+console.log("\n[③ 分割休息の合計判定: 2分割=10h / 3分割=12h・各3h以上は別途]");
+check("2分割 4h+6h=10hはOK", evaluateSplitRestTotal([240, 360], CFG).ok);
+check("2分割 4h+5h=9hは不足でNG", !evaluateSplitRestTotal([240, 300], CFG).ok);
+check("3分割 4h+4h+4h=12hはOK", evaluateSplitRestTotal([240, 240, 240], CFG).ok);
+check("3分割 3h+3h+5h=11hは不足でNG", !evaluateSplitRestTotal([180, 180, 300], CFG).ok);
+check("4分割は分割数超過でNG", evaluateSplitRestTotal([180, 180, 180, 180], CFG).exceedsSplits);
+check("単一(1分割)は合計判定しない=OK", evaluateSplitRestTotal([180], CFG).ok);
 
 console.log(`\n===== 結果: PASS ${pass} / FAIL ${fail} =====`);
 process.exit(fail === 0 ? 0 : 1);
