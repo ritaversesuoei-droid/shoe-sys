@@ -104,6 +104,33 @@ export interface CloseResult {
   judgement: ShiftJudgement;
 }
 
+/** 休憩打刻(rest_start/rest_end)を開始→終了の区間ペアにする（②深夜休憩控除の入力）。 */
+export function pairBreakEvents(
+  evs: { event_type: string; occurred_at: string }[],
+): { startIso: string; endIso: string }[] {
+  const out: { startIso: string; endIso: string }[] = [];
+  let open: string | null = null;
+  for (const e of evs) {
+    if (e.event_type === "rest_start") open = e.occurred_at;
+    else if (e.event_type === "rest_end" && open) {
+      out.push({ startIso: open, endIso: e.occurred_at });
+      open = null;
+    }
+  }
+  return out;
+}
+
+/** 指定勤務の休憩区間を読む。休憩ボタン(打刻)が無ければ空＝深夜控除なし（手入力は従来どおり）。 */
+async function loadBreakIntervals(sb: SB, shiftId: string): Promise<{ startIso: string; endIso: string }[]> {
+  const { data } = await sb
+    .from("events")
+    .select("event_type, occurred_at")
+    .eq("shift_id", shiftId)
+    .in("event_type", ["rest_start", "rest_end"])
+    .order("occurred_at", { ascending: true });
+  return pairBreakEvents(data ?? []);
+}
+
 /**
  * 勤務の指標算出 → shift 更新 → 違反台帳 upsert/解消 を行う共通処理。
  *   closeShift（退勤時）と recomputeShift（日報確定で休憩反映時）の両方から使用。
@@ -118,9 +145,10 @@ async function persistShiftMetrics(
   const prev = shift.clock_in_at
     ? await findPreviousClosedShift(sb, shift.driver_id, shift.clock_in_at)
     : null;
+  const breaks = await loadBreakIntervals(sb, shift.id); // ② 深夜休憩控除用
 
   const metrics = calcShiftMetrics(
-    { clockInAt: shift.clock_in_at, clockOutAt, restMin, prevClockOutAt: prev?.clock_out_at ?? null },
+    { clockInAt: shift.clock_in_at, clockOutAt, restMin, prevClockOutAt: prev?.clock_out_at ?? null, breaks },
     config,
   );
 

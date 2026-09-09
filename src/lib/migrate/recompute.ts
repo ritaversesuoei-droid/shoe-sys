@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/types/database";
 import { loadComplianceConfig, calcShiftMetrics, judgeShift } from "@/lib/compliance";
+import { pairBreakEvents } from "@/lib/operations/shift";
 
 type SB = SupabaseClient<Database>;
 
@@ -50,6 +51,21 @@ export async function recomputeAllMetrics(
       .order("clock_in_at", { ascending: true });
     if (!shifts?.length) continue;
 
+    // ② 深夜休憩控除用: このドライバーの休憩打刻を一括取得し shift_id ごとに区間化（打刻なしなら空）。
+    const { data: restEvs } = await sb
+      .from("events")
+      .select("shift_id, event_type, occurred_at")
+      .eq("driver_id", d.id)
+      .in("event_type", ["rest_start", "rest_end"])
+      .order("occurred_at", { ascending: true });
+    const evsByShift = new Map<string, { event_type: string; occurred_at: string }[]>();
+    for (const e of restEvs ?? []) {
+      if (!e.shift_id) continue;
+      const arr = evsByShift.get(e.shift_id) ?? [];
+      arr.push({ event_type: e.event_type, occurred_at: e.occurred_at });
+      evsByShift.set(e.shift_id, arr);
+    }
+
     let prevOut: string | null = null;
     const weekExt = new Map<string, number>();
 
@@ -60,6 +76,7 @@ export async function recomputeAllMetrics(
           clockOutAt: s.clock_out_at,
           restMin: intervalToMin(s.rest_time),
           prevClockOutAt: prevOut,
+          breaks: pairBreakEvents(evsByShift.get(s.id) ?? []),
         },
         config,
       );
