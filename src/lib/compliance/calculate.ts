@@ -48,6 +48,9 @@ export interface ShiftMetricsInput {
   clockOutAt: string | null;
   restMin: number; // 休憩時間（分）
   prevClockOutAt?: string | null; // 直前勤務の退勤（休息期間算定用）
+  /** 休憩の実区間（打刻ベース）。あれば深夜(22-5)にかかった休憩分を深夜労働から控除する（②）。
+   *  手入力（合計のみ・区間なし）の場合は従来どおり控除しない。 */
+  breaks?: { startIso: string; endIso: string }[];
 }
 
 /** 1勤務の基礎指標を算出（仕様書 6.1）。 */
@@ -68,7 +71,14 @@ export function calcShiftMetrics(
   const restraintMin = diffMinutes(input.clockInAt, clockOutAt);
   const laborMin =
     restraintMin == null ? null : Math.max(0, restraintMin - input.restMin);
-  const nightMin = calcNightMinutes(input.clockInAt, clockOutAt, config);
+  // ② 深夜労働: 拘束スパンの深夜(22-5)分から、深夜にかかった休憩分を控除する。
+  //   休憩区間(打刻)がある場合のみ控除（手入力＝区間なしなら従来どおり控除しない）。
+  const rawNightMin = calcNightMinutes(input.clockInAt, clockOutAt, config);
+  const nightBreakMin = (input.breaks ?? []).reduce(
+    (sum, b) => sum + calcNightMinutes(b.startIso, b.endIso, config),
+    0,
+  );
+  const nightMin = Math.max(0, rawNightMin - nightBreakMin);
   const restPeriodMin = diffMinutes(input.prevClockOutAt, input.clockInAt);
   return { restraintMin, laborMin, nightMin, restPeriodMin };
 }
@@ -95,7 +105,7 @@ export function judgeShift(
   workMode: ShiftWorkMode = {},
 ): ShiftJudgement {
   const items: ComplianceAlertItem[] = [];
-  const { restraintMin, restPeriodMin, nightMin } = metrics;
+  const { restraintMin, laborMin, restPeriodMin, nightMin } = metrics;
   const dr = config.daily_restraint;
   const rp = config.rest_period;
   const sc = config.special_cases;
@@ -161,6 +171,23 @@ export function judgeShift(
         message: `休息期間が基本(${hhmm(rp.principle_min)})未満`,
         actualMin: restPeriodMin,
         thresholdMin: rp.principle_min,
+      });
+    }
+  }
+
+  // --- 労基法34条: 勤務中の休憩（労働6h超→45分・8h超→60分）。運転者は一斉付与の適用除外だが
+  //     必要な休憩量は同じ。合計休憩(拘束−労働)で不足を警告する（休憩を取った"時刻"は問わない=手入力でも有効）。
+  //     ④の方針: 免除特例は使わず、規定休憩が取られていなければ警告を出す。
+  if (restraintMin != null && laborMin != null) {
+    const restMin = Math.max(0, restraintMin - laborMin);
+    const requiredBreak = laborMin > 480 ? 60 : laborMin > 360 ? 45 : 0;
+    if (requiredBreak > 0 && restMin < requiredBreak) {
+      items.push({
+        type: "break",
+        severity: "warning",
+        message: `休憩が労基法基準(${requiredBreak}分)に不足（実${restMin}分）`,
+        actualMin: restMin,
+        thresholdMin: requiredBreak,
       });
     }
   }
