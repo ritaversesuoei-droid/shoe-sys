@@ -43,6 +43,40 @@ export function calcNightMinutes(
   return count;
 }
 
+/**
+ * 連続運転(430)判定用: 勤務スパンのうち「30分以上の休憩で区切った最長の無休憩ストレッチ(分)」。
+ *   荷役・待機は中断に含めない方針（①④）＝実休憩(rest打刻)のみが区切りになる。
+ *   簡略化: 1回30分以上の休憩のみをリセットとする（10分×3の累計は将来対応・安全側に倒す）。
+ *   休憩打刻が無い場合は勤務全体が1ストレッチになるため、呼び出し側は休憩ボタン運用時のみ本値を使う。
+ */
+export function maxContinuousDriveMin(
+  clockInIso: string | null,
+  clockOutIso: string | null,
+  breaks: { startIso: string; endIso: string }[],
+  config: ComplianceConfig,
+): number | null {
+  if (!clockInIso || !clockOutIso) return null;
+  const inMs = Date.parse(clockInIso);
+  let outMs = Date.parse(clockOutIso);
+  if (Number.isNaN(inMs) || Number.isNaN(outMs)) return null;
+  if (outMs < inMs) outMs += 24 * 60 * MS_PER_MIN; // 日跨ぎ補正
+  const resetMin = config.continuous_driving.break_total_min; // 30分
+  const sorted = [...breaks]
+    .map((b) => ({ s: Date.parse(b.startIso), e: Date.parse(b.endIso) }))
+    .filter((b) => !Number.isNaN(b.s) && !Number.isNaN(b.e) && b.e > b.s)
+    .sort((a, b) => a.s - b.s);
+  let segStart = inMs;
+  let maxSeg = 0;
+  for (const b of sorted) {
+    if ((b.e - b.s) / MS_PER_MIN >= resetMin) {
+      maxSeg = Math.max(maxSeg, (b.s - segStart) / MS_PER_MIN);
+      segStart = b.e;
+    }
+  }
+  maxSeg = Math.max(maxSeg, (outMs - segStart) / MS_PER_MIN);
+  return Math.round(maxSeg);
+}
+
 export interface ShiftMetricsInput {
   clockInAt: string | null;
   clockOutAt: string | null;
@@ -86,6 +120,9 @@ export function calcShiftMetrics(
 export interface JudgeContext {
   /** 当該週で既に「14h超(extended_threshold)」となった回数（週2回まで目安の判定用） */
   extendedCountThisWeek?: number;
+  /** 連続運転(430)判定用: 30分休憩で区切った最長無休憩ストレッチ(分)。
+   *  休憩打刻ベースの値なので、休憩ボタン運用時のみ呼び出し側が渡す（未指定＝判定しない＝手入力で誤警告しない）。 */
+  continuousDriveMin?: number;
 }
 
 /**
@@ -149,10 +186,13 @@ export function judgeShift(
   }
 
   // --- 休息期間（特例で下限を切替） ---
+  //   分割休息は「1回の休息＝1セグメント」を min_segment_min(3h)で判定する。
+  //   （旧実装は単一ギャップを合計下限600分で判定し、分割にすると逆に厳しくなる不具合だった。
+  //    2/3分割の合計10/12h判定は複数セグメントの集計が要るため集計レイヤ側の課題として別途。）
   const restFloor = isDouble
     ? sc.two_person.min_rest_period_min
     : splitRest
-      ? sc.split_rest.min_total_min
+      ? sc.split_rest.min_segment_min
       : rp.min_floor_min;
   if (restPeriodMin != null) {
     if (restPeriodMin < restFloor) {
@@ -190,6 +230,17 @@ export function judgeShift(
         thresholdMin: requiredBreak,
       });
     }
+  }
+
+  // --- 連続運転(430): 30分休憩で区切った最長ストレッチが4時間超なら警告（休憩ボタン運用時のみ・要社労士確認） ---
+  if (ctx.continuousDriveMin != null && ctx.continuousDriveMin > config.continuous_driving.max_min) {
+    items.push({
+      type: "continuous_drive",
+      severity: "warning",
+      message: `連続運転が${hhmm(config.continuous_driving.max_min)}を超過（30分の中断が必要）`,
+      actualMin: ctx.continuousDriveMin,
+      thresholdMin: config.continuous_driving.max_min,
+    });
   }
 
   // --- 適用した特例を情報として明示（監査証跡・要社労士確認） ---
