@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/types/database";
-import { loadComplianceConfig, calcShiftMetrics, judgeShift } from "@/lib/compliance";
+import { loadComplianceConfig, calcShiftMetrics, judgeShift, maxContinuousDriveMin } from "@/lib/compliance";
 import { pairBreakEvents } from "@/lib/operations/shift";
 
 type SB = SupabaseClient<Database>;
@@ -32,6 +32,9 @@ export async function recomputeAllMetrics(
   opts: { driverIds?: string[]; sinceWorkDate?: string } = {},
 ): Promise<{ shifts: number; alerts: number }> {
   const config = await loadComplianceConfig(sb);
+  // 430(連続運転)判定は休憩ボタン運用時のみ（手入力=打刻なしでの誤警告を避ける）。設定を一度だけ読む。
+  const { data: featRow } = await sb.from("app_settings").select("value").eq("key", "features").maybeSingle();
+  const restButtonOn = (featRow?.value as { rest_button?: boolean } | null)?.rest_button === true;
   // driverIds 指定時はそのドライバーのみ再計算（差分ミラーの高速化用。
   //   週次・前勤務休息の文脈は各ドライバーの全勤務を辿るため精度は保たれる）。
   let dq = sb.from("drivers").select("id");
@@ -70,19 +73,23 @@ export async function recomputeAllMetrics(
     const weekExt = new Map<string, number>();
 
     for (const s of shifts) {
+      const breaks = pairBreakEvents(evsByShift.get(s.id) ?? []);
       const metrics = calcShiftMetrics(
         {
           clockInAt: s.clock_in_at,
           clockOutAt: s.clock_out_at,
           restMin: intervalToMin(s.rest_time),
           prevClockOutAt: prevOut,
-          breaks: pairBreakEvents(evsByShift.get(s.id) ?? []),
+          breaks,
         },
         config,
       );
       const wk = weekStart(s.work_date);
       const ext = weekExt.get(wk) ?? 0;
-      const judgement = judgeShift(metrics, config, { extendedCountThisWeek: ext });
+      const continuousDriveMin = restButtonOn
+        ? maxContinuousDriveMin(s.clock_in_at, s.clock_out_at, breaks, config) ?? undefined
+        : undefined;
+      const judgement = judgeShift(metrics, config, { extendedCountThisWeek: ext, continuousDriveMin });
 
       // 前勤務退勤・週次拡張回数の文脈は全勤務を辿って正しく積むが、DB書き込みは対象期間の勤務だけに絞る。
       //   （sinceWorkDate 指定時＝差分ミラー。全履歴を毎回書き戻すと件数×2クエリで60s超過するのを防ぐ。

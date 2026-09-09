@@ -6,6 +6,7 @@ import {
   loadComplianceConfig,
   calcShiftMetrics,
   judgeShift,
+  maxContinuousDriveMin,
   type ShiftMetrics,
   type ShiftJudgement,
   type ShiftWorkMode,
@@ -131,6 +132,12 @@ async function loadBreakIntervals(sb: SB, shiftId: string): Promise<{ startIso: 
   return pairBreakEvents(data ?? []);
 }
 
+/** 休憩ボタン(打刻)運用が有効か。ON時のみ 430(連続運転)判定を行う（手入力=打刻なしでの誤警告を避ける）。 */
+async function isRestButtonEnabled(sb: SB): Promise<boolean> {
+  const { data } = await sb.from("app_settings").select("value").eq("key", "features").maybeSingle();
+  return (data?.value as { rest_button?: boolean } | null)?.rest_button === true;
+}
+
 /**
  * 勤務の指標算出 → shift 更新 → 違反台帳 upsert/解消 を行う共通処理。
  *   closeShift（退勤時）と recomputeShift（日報確定で休憩反映時）の両方から使用。
@@ -146,6 +153,10 @@ async function persistShiftMetrics(
     ? await findPreviousClosedShift(sb, shift.driver_id, shift.clock_in_at)
     : null;
   const breaks = await loadBreakIntervals(sb, shift.id); // ② 深夜休憩控除用
+  // 430(連続運転)判定は休憩ボタン運用時のみ（打刻区間から算出。手入力=打刻なしでは判定しない）。
+  const continuousDriveMin = (await isRestButtonEnabled(sb))
+    ? maxContinuousDriveMin(shift.clock_in_at, clockOutAt, breaks, config) ?? undefined
+    : undefined;
 
   const metrics = calcShiftMetrics(
     { clockInAt: shift.clock_in_at, clockOutAt, restMin, prevClockOutAt: prev?.clock_out_at ?? null, breaks },
@@ -194,7 +205,7 @@ async function persistShiftMetrics(
     .maybeSingle();
   const manageAttendance = drv?.manage_attendance !== false;
   const judgement: ShiftJudgement = manageAttendance
-    ? judgeShift(metrics, config, { extendedCountThisWeek: count ?? 0 }, workMode)
+    ? judgeShift(metrics, config, { extendedCountThisWeek: count ?? 0, continuousDriveMin }, workMode)
     : { items: [], alertTypes: [], hasViolation: false };
 
   const warnRestraint =
