@@ -361,6 +361,7 @@ export type Database = {
       }
       dispatch_plans: {
         Row: {
+          affiliation: string | null
           arrival_date: string | null
           arrival_time: string | null
           created_at: string
@@ -379,6 +380,7 @@ export type Database = {
           vehicle_no: string | null
         }
         Insert: {
+          affiliation?: string | null
           arrival_date?: string | null
           arrival_time?: string | null
           created_at?: string
@@ -397,6 +399,7 @@ export type Database = {
           vehicle_no?: string | null
         }
         Update: {
+          affiliation?: string | null
           arrival_date?: string | null
           arrival_time?: string | null
           created_at?: string

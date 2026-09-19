@@ -43,7 +43,7 @@ export async function getLogiFlowBoard(sb: SB, dateStr: string): Promise<LFBoard
   const { data, error } = await sb
     .from("dispatch_plans")
     .select(
-      "id, plan_date, arrival_date, driver_id, driver_name_raw, vehicle_no, shipper, origin_spot, delivery_spot, arrival_time, highway_instruction, sort_no, is_subcontract, drivers(name, code, default_vehicle_no, affiliation, manage_attendance)",
+      "id, plan_date, arrival_date, driver_id, driver_name_raw, affiliation, vehicle_no, shipper, origin_spot, delivery_spot, arrival_time, highway_instruction, sort_no, is_subcontract, drivers(name, code, default_vehicle_no, affiliation, manage_attendance)",
     )
     .or(`plan_date.eq.${dateStr},arrival_date.eq.${dateStr}`)
     .order("sort_no", { ascending: true, nullsFirst: false });
@@ -69,7 +69,8 @@ export async function getLogiFlowBoard(sb: SB, dateStr: string): Promise<LFBoard
     if (!d) {
       // 乗務員名の上は「所属＝会社名」を表示する。affiliation に社名があればそれを、無ければ
       //   自社→昭栄運輸 / 協力→協力（協力店社名はマスタ未入力の行が多いため後追い可）。
-      const aff = (drv?.affiliation ?? "").trim();
+      // 所属(社名)はまず配車行のシート所属列、無ければドライバーの affiliation を使う。
+      const aff = ((r.affiliation ?? "") || (drv?.affiliation ?? "")).trim();
       const isCoop = r.is_subcontract || drv?.manage_attendance === false;
       const belong = aff && aff !== "自社" && aff !== "協力" ? aff : isCoop ? "協力" : "昭栄運輸";
       d = {
