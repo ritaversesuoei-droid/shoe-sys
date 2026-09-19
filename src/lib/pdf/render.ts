@@ -26,8 +26,10 @@ async function launchBrowser(): Promise<Browser> {
   // (2) サーバーレス: 明示パスが無ければ @sparticuz/chromium を使用（動的import=ローカルでは読み込まない）
   if (!envPath && isServerless()) {
     const chromium = (await import("@sparticuz/chromium")).default;
+    // 同梱の日本語フォント(fonts.tar.br)を確実にロードさせる（豆腐□対策）。
     return puppeteer.launch({
       args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
       headless: true,
     });
