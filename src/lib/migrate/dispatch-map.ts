@@ -46,6 +46,8 @@ export async function buildDispatchPayload(
       plan_date: planDate,
       driver_id: driverId,
       driver_name_raw: name || null,
+      affiliation: affiliation || null, // 所属(社名)。流れ表の社名表示に使用
+
       vehicle_no: cleanCode(r[3]) || null,
       shipper: cleanText(r[5]) || null,
       origin_spot: cleanText(r[6]) || null, // 積地(発地)
