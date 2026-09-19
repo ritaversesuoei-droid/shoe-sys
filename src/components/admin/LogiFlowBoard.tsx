@@ -39,6 +39,7 @@ export function LogiFlowBoard({
   nextDate,
   confirmed,
   now,
+  instructions,
 }: {
   date: string;
   drivers: LFDriver[];
@@ -47,6 +48,7 @@ export function LogiFlowBoard({
   nextDate: string;
   confirmed: boolean;
   now: string; // サーバのデータ取得時刻(ISO)。更新/自動反映のたびに再描画で更新される
+  instructions: Record<string, string>; // driverId → HH:MM（出勤指示時間の初期値）
 }) {
   const router = useRouter();
   const { control: zoomControl, wrapStyle } = useBoardZoom("logiflow");
@@ -59,8 +61,15 @@ export function LogiFlowBoard({
   const editingRef = useRef(false);
   editingRef.current = editing; // 最新の編集状態を購読/ポーリングのクロージャから参照する
   const [othersEditing, setOthersEditing] = useState(false); // 他の管理者が編集中か（同時編集の警告）
+  const [attnOpen, setAttnOpen] = useState(false); // 出勤指示時間モーダル
   const chRef = useRef<RealtimeChannel | null>(null);
   const tomorrow = addDayStr(date, 1);
+
+  // 出勤指示時間の対象＝この日の盤面に出ている「登録ドライバー（id あり）」。協力/名前のみは対象外。
+  const attnDrivers = drivers
+    .filter((d): d is LFDriver & { id: string } => !!d.id)
+    .map((d) => ({ id: d.id, name: d.name, vehicle: d.vehicle }));
+  const attnSetCount = attnDrivers.filter((d) => instructions[d.id]).length;
 
   // 即時反映（Realtime＋ポーリング）。編集中は refresh を止めて入力（フォーカス/キャレット）を保護。
   //   あわせて presence で自分の編集状態を共有し、他の管理者が編集中なら警告を出す（同時編集の事故防止）。
@@ -187,6 +196,16 @@ export function LogiFlowBoard({
         <span className={`text-[10px] ${confirmed ? "text-red-100" : "text-slate-400"}`} title="この画面のデータを取得した時刻（更新・自動反映で更新）">最終更新 {jstStamp(now)}</span>
         {zoomControl}
         <div className="ml-auto flex items-center gap-2">
+          {/* 出勤指示時間（早すぎ出勤の同意ゲート）: 時間指定＋人指定＋一括をモーダルで設定 */}
+          <button
+            onClick={() => setAttnOpen(true)}
+            className="relative rounded-lg bg-indigo-600 px-4 py-2 text-sm font-black text-white shadow hover:bg-indigo-700"
+          >
+            ⏰ 出勤時間
+            {attnSetCount > 0 && (
+              <span className="ml-1 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-black text-indigo-700">{attnSetCount}</span>
+            )}
+          </button>
           {/* 確定 / 確定解除：配車表のタイトル帯も赤/通常に切替 */}
           <button
             onClick={() => api("/api/admin/dispatch/confirm", "POST", { date, confirmed: !confirmed })}
@@ -265,6 +284,16 @@ export function LogiFlowBoard({
 
       {modal && (
         <JobModal job={modal} date={date} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh(); }} setErr={setErr} />
+      )}
+
+      {attnOpen && (
+        <AttendanceModal
+          date={date}
+          drivers={attnDrivers}
+          initial={instructions}
+          onClose={() => setAttnOpen(false)}
+          onChanged={() => router.refresh()}
+        />
       )}
     </main>
   );
@@ -407,6 +436,214 @@ function JobModal({
           <button onClick={save} disabled={saving} className="rounded bg-orange-500 px-5 py-1.5 font-bold text-white disabled:opacity-50">
             {saving ? "保存中…" : "保存して閉じる"}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 出勤指示時間モーダル（流れ表 / 現場要望）。
+ *   - 個別: 各ドライバーの時刻を入力→その場で保存（空欄で解除）。
+ *   - 一括: チェックした人／全員へ同一時刻を一括適用・一括解除。
+ *   ここで設定した時刻より早い通常出勤は、ドライバーの打刻画面でアラート＋同意が必要になる。
+ */
+function AttendanceModal({
+  date,
+  drivers,
+  initial,
+  onClose,
+  onChanged,
+}: {
+  date: string;
+  drivers: { id: string; name: string; vehicle: string | null }[];
+  initial: Record<string, string>;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [times, setTimes] = useState<Record<string, string>>(() => {
+    const o: Record<string, string> = {};
+    for (const d of drivers) {
+      const t = initial[d.id];
+      if (t) o[d.id] = t;
+    }
+    return o;
+  });
+  const savedRef = useRef<Record<string, string>>({ ...times });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkTime, setBulkTime] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const setCount = Object.values(times).filter(Boolean).length;
+  const allSelected = drivers.length > 0 && selected.size === drivers.length;
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(drivers.map((d) => d.id)));
+  }
+
+  /** 個別保存（空欄で解除）。値が変わっていなければ何もしない。 */
+  async function saveOne(id: string, time: string) {
+    if ((savedRef.current[id] ?? "") === (time ?? "")) return;
+    setBusy(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/admin/attendance-instructions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driver_id: id, date, time: time || null }),
+      });
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error ?? "保存に失敗しました");
+      if (time) savedRef.current[id] = time;
+      else delete savedRef.current[id];
+      onChanged();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** 一括適用/解除。ids へ同一時刻（time=null で解除）。 */
+  async function bulkApply(ids: string[], time: string | null) {
+    if (ids.length === 0) {
+      setErr("対象の人を選んでください（または「全員へ」）。");
+      return;
+    }
+    if (time !== null && !time) {
+      setErr("一括で設定する時刻を入力してください。");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/admin/attendance-instructions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, driver_ids: ids, time }),
+      });
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error ?? "一括設定に失敗しました");
+      setTimes((prev) => {
+        const next = { ...prev };
+        for (const id of ids) {
+          if (time) next[id] = time;
+          else delete next[id];
+        }
+        return next;
+      });
+      for (const id of ids) {
+        if (time) savedRef.current[id] = time;
+        else delete savedRef.current[id];
+      }
+      setMsg(time ? `${ids.length}名を ${time} に設定しました` : `${ids.length}名を解除しました`);
+      onChanged();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const allIds = drivers.map((d) => d.id);
+  const selIds = [...selected];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-xl border-2 border-indigo-700 bg-white" onClick={(e) => e.stopPropagation()}>
+        {/* ヘッダ */}
+        <div className="flex items-center justify-between rounded-t-xl bg-indigo-700 px-4 py-3 text-white">
+          <h3 className="text-base font-black">⏰ 出勤指示時間　<span className="font-bold">{date}</span></h3>
+          <button onClick={onClose} className="rounded px-2 text-xl font-bold hover:bg-indigo-600">×</button>
+        </div>
+
+        <div className="overflow-y-auto px-4 py-3">
+          <p className="mb-3 text-xs text-slate-500">
+            指示時間より早い通常出勤は、ドライバーの打刻画面で<strong>アラート＋同意チェック</strong>が必要になります（同意しないと出勤ボタンは押せません）。
+            空欄にすると解除。対象はこの日の流れ表に出ている<strong>登録ドライバー</strong>のみです（協力・名前のみは対象外）。
+          </p>
+
+          {/* 一括設定バー */}
+          <div className="mb-3 rounded-lg border border-indigo-200 bg-indigo-50/60 p-3">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="text-sm font-bold text-indigo-800">一括設定</span>
+              <input
+                type="time"
+                value={bulkTime}
+                onChange={(e) => setBulkTime(e.target.value)}
+                className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              />
+              <button onClick={() => bulkApply(selIds, bulkTime)} disabled={busy} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-bold text-white disabled:opacity-50">
+                選択者へ適用{selected.size > 0 ? `（${selected.size}名）` : ""}
+              </button>
+              <button onClick={() => bulkApply(allIds, bulkTime)} disabled={busy} className="rounded-lg bg-indigo-800 px-3 py-1.5 text-sm font-bold text-white disabled:opacity-50">
+                全員へ適用（{drivers.length}名）
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={() => bulkApply(selIds, null)} disabled={busy} className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-600 disabled:opacity-50">
+                選択者を解除
+              </button>
+              <button onClick={() => bulkApply(allIds, null)} disabled={busy} className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-600 disabled:opacity-50">
+                全員を解除
+              </button>
+            </div>
+          </div>
+
+          {err && <p className="mb-2 rounded bg-red-50 p-2 text-sm text-red-600">{err}</p>}
+          {msg && <p className="mb-2 rounded bg-green-50 p-2 text-sm text-green-700">{msg}</p>}
+
+          {/* 選択操作 + 件数 */}
+          <div className="mb-2 flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} className="h-4 w-4" />
+              全選択
+            </label>
+            <span className="text-xs text-slate-400">設定済 {setCount} / {drivers.length}名</span>
+          </div>
+
+          {/* ドライバー一覧（個別） */}
+          {drivers.length === 0 ? (
+            <p className="py-4 text-center text-sm text-slate-400">この日の流れ表に登録ドライバーがいません。</p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {drivers.map((d) => (
+                <div key={d.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${selected.has(d.id) ? "border-indigo-400 bg-indigo-50/50" : "border-slate-200 bg-white"}`}>
+                  <input type="checkbox" checked={selected.has(d.id)} onChange={() => toggle(d.id)} className="h-4 w-4 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-bold text-slate-700">{d.name}</div>
+                    {d.vehicle && <div className="truncate text-[11px] text-slate-400">{d.vehicle}</div>}
+                  </div>
+                  <input
+                    type="time"
+                    value={times[d.id] ?? ""}
+                    disabled={busy}
+                    onChange={(e) => setTimes((prev) => ({ ...prev, [d.id]: e.target.value }))}
+                    onBlur={(e) => saveOne(d.id, e.target.value)}
+                    className="shrink-0 rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline focus:outline-1 focus:outline-indigo-500"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* フッタ */}
+        <div className="flex items-center justify-end gap-2 rounded-b-xl border-t border-slate-200 px-4 py-3">
+          <span className="mr-auto text-xs text-slate-400">{busy ? "保存中…" : "変更は自動保存されます"}</span>
+          <button onClick={onClose} className="rounded-lg bg-slate-800 px-5 py-2 text-sm font-bold text-white">閉じる</button>
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@ import { getSessionContext } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getLogiFlowBoard } from "@/lib/operations/logiflow";
 import { isDispatchConfirmed } from "@/lib/operations/dispatch-confirm";
+import { getInstructionsForDate } from "@/lib/operations/attendance-instruction";
 import { toWorkDate } from "@/lib/datekey";
 import { LogiFlowBoard } from "@/components/admin/LogiFlowBoard";
 
@@ -25,9 +26,10 @@ export default async function LogiFlowPage({
   const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : toWorkDate(new Date());
 
   const admin = createAdminClient();
-  const [board, confirmed] = await Promise.all([
+  const [board, confirmed, instructions] = await Promise.all([
     getLogiFlowBoard(admin, day),
     isDispatchConfirmed(admin, day),
+    getInstructionsForDate(admin, day),
   ]);
 
   const shift = (n: number): string => {
@@ -45,6 +47,7 @@ export default async function LogiFlowPage({
       nextDate={shift(1)}
       confirmed={confirmed}
       now={new Date().toISOString()}
+      instructions={instructions}
     />
   );
 }
