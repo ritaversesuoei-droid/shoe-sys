@@ -26,11 +26,17 @@ export default async function LogiFlowPage({
   const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : toWorkDate(new Date());
 
   const admin = createAdminClient();
-  const [board, confirmed, instructions] = await Promise.all([
+  const [board, confirmed, instructions, driverRows] = await Promise.all([
     getLogiFlowBoard(admin, day),
     isDispatchConfirmed(admin, day),
     getInstructionsForDate(admin, day),
+    admin.from("drivers").select("id, name, default_vehicle_no"),
   ]);
+
+  // 出勤指示時間の対象＝ドライバーマスタ全員（その日の配車有無に関わらず選べるようにする）
+  const allDrivers = (driverRows.data ?? [])
+    .map((d) => ({ id: d.id, name: d.name, vehicle: d.default_vehicle_no ?? null }))
+    .sort((a, b) => a.name.localeCompare(b.name, "ja"));
 
   const shift = (n: number): string => {
     const d = new Date(`${day}T00:00:00Z`);
@@ -48,6 +54,7 @@ export default async function LogiFlowPage({
       confirmed={confirmed}
       now={new Date().toISOString()}
       instructions={instructions}
+      allDrivers={allDrivers}
     />
   );
 }
