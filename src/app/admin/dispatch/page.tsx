@@ -52,7 +52,7 @@ export default async function DispatchPage({
   const selectPlans = (d: string) =>
     supabase
       .from("dispatch_plans")
-      .select("id, plan_date, arrival_date, driver_id, driver_name_raw, vehicle_no, shipper, origin_spot, delivery_spot, arrival_time, is_subcontract, sort_no, drivers(name)")
+      .select("id, plan_date, arrival_date, driver_id, driver_name_raw, vehicle_no, shipper, origin_spot, delivery_spot, arrival_time, is_subcontract, sort_no, drivers(name, affiliation)")
       .eq("plan_date", d)
       .order("is_subcontract", { ascending: true })
       .order("sort_no", { ascending: true, nullsFirst: false })
@@ -160,6 +160,7 @@ export default async function DispatchPage({
           id: r.id,
           driver_name_raw: r.driver_name_raw,
           driver_name: (r.drivers as { name: string } | null)?.name ?? null,
+          affiliation: (r.drivers as { affiliation: string | null } | null)?.affiliation ?? null,
           vehicle_no: r.vehicle_no,
           shipper: r.shipper,
           origin_spot: r.origin_spot,
