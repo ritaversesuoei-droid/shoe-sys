@@ -30,15 +30,19 @@ export async function buildAttendanceWriteback(
     .map((s) => {
       const name = (s.drivers as { name: string } | null)?.name ?? "";
       if (!name || !s.work_date) return null;
-      const rm = intervalToMin(s.rest_time);
-      return {
-        driver: name,
-        work_date: s.work_date, // yyyy-MM-dd（シートの「開始日」と照合）
-        edited_in: hm(s.edited_in),
-        edited_out: hm(s.edited_out),
-        rest: `${Math.floor(rm / 60)}:${String(rm % 60).padStart(2, "0")}`, // 休憩(H:MM)
-        reason: s.revision_reason ?? "",
-      } as Record<string, string>;
+      // 値が有る項目だけ送る。空文字/0を常に送ると、片側だけ修正した際にシート手入力セルを
+      //   空/0で上書き消去してしまう（GAS は updates に在るキーのみ該当セルを更新する前提）。
+      const u: Record<string, string> = { driver: name, work_date: s.work_date }; // work_date=yyyy-MM-dd（開始日と照合）
+      const ein = hm(s.edited_in);
+      if (ein) u.edited_in = ein;
+      const eout = hm(s.edited_out);
+      if (eout) u.edited_out = eout;
+      if (s.rest_time != null) {
+        const rm = intervalToMin(s.rest_time);
+        u.rest = `${Math.floor(rm / 60)}:${String(rm % 60).padStart(2, "0")}`; // 休憩(H:MM)
+      }
+      if (s.revision_reason) u.reason = s.revision_reason;
+      return u;
     })
     .filter((v): v is Record<string, string> => v !== null);
 
