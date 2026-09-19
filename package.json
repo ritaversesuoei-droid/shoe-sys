@@ -46,7 +46,6 @@
     "test:attendance-instruction": "node --env-file=.env.local --import tsx scripts/test-attendance-instruction.mts",
     "test:fuel": "node --env-file=.env.local --import tsx scripts/test-fuel.mts",
     "seed:fuel-master": "node --env-file=.env.local --import tsx scripts/seed-fuel-master.mts",
-    "seed:vehicles": "node --env-file=.env.local --import tsx scripts/seed-vehicles.mts",
     "test:rest": "node --env-file=.env.local --import tsx scripts/test-rest.mts",
     "test:compliance-special": "node --import tsx scripts/test-compliance-special.mts"
   },
