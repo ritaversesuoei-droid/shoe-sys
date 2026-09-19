@@ -44,9 +44,9 @@ function driverRow(d: LFDriver): string {
       <div class="dname">${esc(d.name)}</div>
       ${d.vehicle ? `<div class="dveh">${esc(d.vehicle)}</div>` : ""}
     </td>
-    <td class="c-am"><div class="cellflex">${am}</div></td>
+    <td class="c-am"><div class="cellcol">${am}</div></td>
     <td class="c-flow"><div class="cellflex">${flow}</div></td>
-    <td class="c-next"><div class="cellflex">${next}</div></td>
+    <td class="c-next"><div class="cellcol">${next}</div></td>
   </tr>`;
 }
 
@@ -63,13 +63,17 @@ export function renderLogiFlowHtml(board: LFBoard): string {
   table { width:100%; border-collapse: collapse; table-layout: fixed; }
   thead th { background:#111; color:#fff; font-size:8px; font-weight:bold; padding:3px; border:0.5px solid #333; text-align:center; }
   tbody tr { break-inside: avoid; page-break-inside: avoid; }
-  td { border:0.5px solid #999; padding:2px 3px; vertical-align:top; }
-  .c-drv{ width:13%; text-align:center; } .c-am{ width:16%; } .c-flow{ width:55%; } .c-next{ width:16%; }
+  td { border:0.5px solid #999; padding:2px 3px; vertical-align:top; overflow:hidden; }
+  .c-drv{ width:11%; text-align:center; } .c-am{ width:19%; } .c-flow{ width:51%; } .c-next{ width:19%; }
   .belong{ font-size:7px; color:#666; }
   .dname{ font-weight:bold; font-size:11px; line-height:1.2; }
   .dveh{ display:inline-block; border:1px solid #111; border-radius:2px; padding:0 4px; font-size:9px; font-weight:bold; margin-top:1px; }
+  /* 当日フロー=横並び(2列で折返し) / AM・翌日=縦積み(1件=セル幅いっぱい)。min-width:0 で列外へはみ出させない */
   .cellflex{ display:flex; flex-wrap:wrap; gap:3px; align-items:stretch; }
-  .job{ border:1px solid #bbb; border-radius:3px; padding:2px 3px; flex:1 1 150px; min-width:130px; max-width:230px; background:#fff; }
+  .cellcol{ display:flex; flex-direction:column; gap:3px; }
+  .job{ border:1px solid #bbb; border-radius:3px; padding:2px 3px; min-width:0; background:#fff; overflow:hidden; }
+  .cellflex > .job{ flex:1 1 45%; max-width:100%; }
+  .cellcol > .job{ width:100%; }
   .job.sub{ background:#fffbf0; border-color:#e0c890; }
   .jdate{ font-size:7px; color:#666; }
   .jroute{ font-weight:bold; line-height:1.25; word-break:break-all; }
