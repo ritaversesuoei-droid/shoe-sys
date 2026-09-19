@@ -436,6 +436,10 @@ export type Database = {
           line_user_id: string | null
           manage_attendance: boolean
           name: string
+          normal_fuel_max: number | null
+          normal_fuel_min: number | null
+          prize_rank: string | null
+          target_fuel_km_l: number | null
           updated_at: string
         }
         Insert: {
@@ -449,6 +453,10 @@ export type Database = {
           line_user_id?: string | null
           manage_attendance?: boolean
           name: string
+          normal_fuel_max?: number | null
+          normal_fuel_min?: number | null
+          prize_rank?: string | null
+          target_fuel_km_l?: number | null
           updated_at?: string
         }
         Update: {
@@ -462,9 +470,72 @@ export type Database = {
           line_user_id?: string | null
           manage_attendance?: boolean
           name?: string
+          normal_fuel_max?: number | null
+          normal_fuel_min?: number | null
+          prize_rank?: string | null
+          target_fuel_km_l?: number | null
           updated_at?: string
         }
         Relationships: []
+      }
+      fuel_logs: {
+        Row: {
+          created_at: string
+          delta_km: number
+          driver_code: string | null
+          driver_id: string | null
+          driver_name: string | null
+          fuel_km_l: number | null
+          id: string
+          is_full: boolean
+          liters: number
+          month_key: string
+          occurred_at: string
+          odometer: number
+          station: string | null
+          vehicle_no: string
+        }
+        Insert: {
+          created_at?: string
+          delta_km?: number
+          driver_code?: string | null
+          driver_id?: string | null
+          driver_name?: string | null
+          fuel_km_l?: number | null
+          id?: string
+          is_full?: boolean
+          liters: number
+          month_key: string
+          occurred_at?: string
+          odometer: number
+          station?: string | null
+          vehicle_no: string
+        }
+        Update: {
+          created_at?: string
+          delta_km?: number
+          driver_code?: string | null
+          driver_id?: string | null
+          driver_name?: string | null
+          fuel_km_l?: number | null
+          id?: string
+          is_full?: boolean
+          liters?: number
+          month_key?: string
+          occurred_at?: string
+          odometer?: number
+          station?: string | null
+          vehicle_no?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fuel_logs_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       event_items: {
         Row: {

@@ -90,6 +90,7 @@ const MENU: {
   { key: "unloading", label: "🏭 荷卸完了", bg: "#6320ee", href: "/driver/punch/unloading" },
   // 休憩の中に長距離再出発/長距離休息があると気づけるよう補足を表示（現場要望 2026-09-19）
   { key: "rest", label: "☕ 休憩・長距離", sub: "長距離再出発・長距離休息もこちら", bg: "#2196f3", dialog: "rest" },
+  { key: "fuel", label: "⛽ 給油記録", bg: "#0f766e", href: "/driver/fuel" },
   { key: "clock_out", label: "🌙 退勤報告", bg: "#d9534f", href: "/driver/punch/clock_out" },
   { key: "report", label: "📝 日報作成", bg: "#455a64", href: "/driver/report" },
 ];
@@ -262,6 +263,7 @@ export function DriverMenu({ name }: { name: string }) {
           {renderBtn(item("loading"), btn)}
           {renderBtn(item("unloading"), btn)}
           {renderBtn(item("rest"), btn)}
+          {renderBtn(item("fuel"), btn)}
           {/* 退勤報告 | 日報作成（2カラム） */}
           <div className="grid grid-cols-2 gap-3">
             {renderBtn(item("clock_out"), gridBtn)}
