@@ -13,7 +13,9 @@ export default async function DriverHome() {
   const ctx = await getSessionContext();
   if (!ctx || !ctx.driverId) return <DriverLogin />;
 
-  // ② 休憩ボタン: 自社は §6② により既定で非表示。協力店社 or 設定で有効化時に表示。
+  // 休憩ボタン自体は常時表示（長距離休憩＝泊まりの休息を含むため）。
+  //   「通常休憩」(勤務中タイマー)の選択肢のみ、自社は §6② により既定で非表示（手入力運用）。
+  //   協力店社 or 設定(features.rest_button)で有効化時に「通常休憩」も表示する（showRest）。
   const supabase = await createClient();
   const [{ data: drv }, { data: featRow }] = await Promise.all([
     supabase.from("drivers").select("manage_attendance").eq("id", ctx.driverId).maybeSingle(),

@@ -47,7 +47,9 @@ export interface PunchResult {
 
 const OPENS_SHIFT: EventType[] = ["departure", "leg_departure"];
 const CLOSES_SHIFT: EventType[] = ["clock_out", "long_rest"];
-const ALCOHOL_REQUIRED: EventType[] = ["leg_departure", "long_rest"];
+// アルコールチェック必須は「運転を開始する打刻」=長距離再出発のみ（現場運用 2026-09-19）。
+//   長距離休憩(泊まりの休息に入る=勤務クローズ)は確認のみで、チェックは再出発時に行う。
+const ALCOHOL_REQUIRED: EventType[] = ["leg_departure"];
 
 /**
  * 打刻オーケストレーション（仕様書 4.3）。
@@ -70,7 +72,7 @@ export async function processPunch(
   if (exErr) throw exErr;
   if (existing) return { eventId: existing.id, shiftId: existing.shift_id, deduped: true };
 
-  // アルコールチェック必須（長距離再出発・長距離休憩 / 4.3.2）
+  // アルコールチェック必須（長距離再出発＝運転再開時 / 4.3.2）
   if (ALCOHOL_REQUIRED.includes(input.event_type) && input.alcohol_checked !== true) {
     throw new PunchError("アルコールチェックの実施が必要です");
   }

@@ -7,7 +7,9 @@ import { createClient } from "@/lib/supabase/client";
 /**
  * ドライバーメニュー（現行GAS index画面の忠実再現）。
  *   - フルワイド縦積みボタン・カード枠・実機の配色/絵文字/文言
- *   - 出勤報告→「通常出勤/長距離再出発」、退勤報告→「通常退勤/長距離休憩」の選択ダイアログ（消し込み）
+ *   - 出勤報告→「通常出勤/長距離再出発」の選択ダイアログ（消し込み）
+ *   - 休憩は独立した大きなボタン→「通常休憩/長距離休憩」を選択（現場要望 2026-09-19）。
+ *       通常休憩=勤務中の休憩タイマー、長距離休憩=泊まりの休息（勤務クローズ・再出発時にアルコールチェック）。
  *   - 今日の履歴はインライン展開（時刻＋内容）
  */
 
@@ -69,19 +71,27 @@ function renderDetail(e: Ev) {
   return null;
 }
 
-// 実機の配色（スクショ準拠）
-const MENU: { key: string; label: string; bg: string; dialog?: "departure" | "clock_out" | "arrival"; href?: string }[] = [
+// 実機の配色（スクショ準拠）。休憩は big=独立した大きなボタン（現場要望 2026-09-19）。
+const MENU: {
+  key: string;
+  label: string;
+  bg: string;
+  dialog?: "departure" | "arrival" | "rest";
+  href?: string;
+  big?: boolean;
+}[] = [
   { key: "departure", label: "☀️ 出勤報告", bg: "#4285f4", dialog: "departure" },
   { key: "arrival", label: "📍 到着報告", bg: "#4caf50", dialog: "arrival" },
   { key: "loading", label: "📦 積込完了(詳細)", bg: "#3d9aa5", href: "/driver/punch/loading" },
   { key: "unloading", label: "🏭 荷卸完了(詳細)", bg: "#6320ee", href: "/driver/punch/unloading" },
-  { key: "clock_out", label: "🌙 退勤報告", bg: "#d9534f", dialog: "clock_out" },
+  { key: "rest", label: "☕ 休憩", bg: "#2196f3", dialog: "rest", big: true },
+  { key: "clock_out", label: "🌙 退勤報告", bg: "#d9534f", href: "/driver/punch/clock_out" },
   { key: "report", label: "📝 日報作成（乗務記録）", bg: "#455a64", href: "/driver/report" },
 ];
 
 export function DriverMenu({ name, showRest }: { name: string; showRest: boolean }) {
   const router = useRouter();
-  const [dialog, setDialog] = useState<null | "departure" | "clock_out" | "arrival">(null);
+  const [dialog, setDialog] = useState<null | "departure" | "arrival" | "rest">(null);
   const [histOpen, setHistOpen] = useState(false);
   const [events, setEvents] = useState<Ev[] | null>(null);
   const [histLoading, setHistLoading] = useState(false);
@@ -96,7 +106,7 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
   const arrKeyRef = useRef<string | null>(null);
   const arrBusyRef = useRef(false);
 
-  function openDialog(d: "departure" | "clock_out" | "arrival") {
+  function openDialog(d: "departure" | "arrival" | "rest") {
     setDialog(d);
     if (d === "arrival") {
       setArrCoords(null);
@@ -172,6 +182,8 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
 
   const go = (href: string) => router.push(href);
   const btn = "w-full rounded-2xl py-5 text-center text-xl font-bold text-white shadow-md active:translate-y-[1px]";
+  // 休憩は一段大きく・リングで強調（現場要望「一つ大きく作成」）
+  const bigBtn = "w-full rounded-2xl py-8 text-center text-2xl font-black text-white shadow-lg ring-4 ring-sky-200 active:translate-y-[1px]";
 
   return (
     <main className="min-h-dvh bg-slate-100 p-3">
@@ -220,27 +232,22 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
           </div>
         )}
 
-        {/* 報告ボタン群 */}
+        {/* 報告ボタン群（休憩は big=独立した大きなボタン） */}
         <div className="mt-4 flex flex-col gap-3">
           {MENU.map((m) => (
             <button
               key={m.key}
               onClick={() => (m.dialog ? openDialog(m.dialog) : go(m.href!))}
-              className={btn}
+              className={m.big ? bigBtn : btn}
               style={{ backgroundColor: m.bg }}
             >
               {m.label}
             </button>
           ))}
-          {showRest && (
-            <button onClick={() => go("/driver/rest")} className={`${btn} bg-[#2196f3]`}>
-              ☕ 休憩
-            </button>
-          )}
         </div>
       </div>
 
-      {/* 報告ダイアログ（出勤/退勤=選択、到着=その場で直接送信） */}
+      {/* 報告ダイアログ（出勤=通常/長距離再出発、休憩=通常/長距離休憩、到着=その場で直接送信） */}
       {dialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeDialog}>
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -248,7 +255,7 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
               {arrDone ? "✓" : "?"}
             </div>
             <h2 className="text-2xl font-bold text-slate-800">
-              {dialog === "arrival" ? "到着報告" : dialog === "departure" ? "出勤報告" : "退勤報告"}
+              {dialog === "arrival" ? "到着報告" : dialog === "departure" ? "出勤報告" : "休憩"}
             </h2>
 
             {dialog === "arrival" ? (
@@ -270,21 +277,48 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
                   </div>
                 </>
               )
+            ) : dialog === "rest" ? (
+              <>
+                <p className="mt-1 text-slate-500">休憩の種類を選んでください</p>
+                <div className="mt-5 flex flex-col gap-2 text-left">
+                  {/* 通常休憩=勤務中の休憩タイマー。自社は手入力運用のため設定(showRest)で表示切替 */}
+                  {showRest && (
+                    <button
+                      onClick={() => go("/driver/rest")}
+                      className="rounded-xl bg-blue-500 px-4 py-3 active:translate-y-[1px]"
+                    >
+                      <span className="block text-lg font-bold text-white">☕ 通常休憩</span>
+                      <span className="mt-0.5 block text-xs text-blue-50">勤務中の休憩（30分タイマー）。勤務は続きます。</span>
+                    </button>
+                  )}
+                  {/* 長距離休憩=泊まりの休息。勤務を一旦終了し、再出発時にアルコールチェック（写真）が必要 */}
+                  <button
+                    onClick={() => go("/driver/punch/long_rest")}
+                    className="rounded-xl bg-amber-500 px-4 py-3 active:translate-y-[1px]"
+                  >
+                    <span className="block text-lg font-bold text-white">🌙 長距離休憩（泊まり）</span>
+                    <span className="mt-0.5 block text-xs text-amber-50">
+                      泊まりの休息に入ります（勤務を一旦終了）。次の運転前＝「長距離再出発」でアルコールチェックが必要です。
+                    </span>
+                  </button>
+                  <button onClick={closeDialog} className="mt-1 rounded-lg bg-slate-500 px-4 py-2.5 text-center font-bold text-white">戻る</button>
+                </div>
+              </>
             ) : (
               <>
                 <p className="mt-1 text-slate-500">どちらの報告ですか？</p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
                   <button
-                    onClick={() => go(dialog === "departure" ? "/driver/punch/departure" : "/driver/punch/clock_out")}
+                    onClick={() => go("/driver/punch/departure")}
                     className="rounded-lg bg-blue-500 px-4 py-2.5 font-bold text-white"
                   >
-                    {dialog === "departure" ? "通常出勤" : "通常退勤"}
+                    通常出勤
                   </button>
                   <button
-                    onClick={() => go(dialog === "departure" ? "/driver/punch/leg_departure" : "/driver/punch/long_rest")}
+                    onClick={() => go("/driver/punch/leg_departure")}
                     className="rounded-lg bg-amber-400 px-4 py-2.5 font-bold text-white"
                   >
-                    {dialog === "departure" ? "長距離再出発" : "長距離休憩"}
+                    長距離再出発
                   </button>
                   <button onClick={closeDialog} className="rounded-lg bg-slate-500 px-4 py-2.5 font-bold text-white">戻る</button>
                 </div>
