@@ -103,12 +103,10 @@ export async function applyDispatchRows(sb: SB, dataRows: string[][]): Promise<D
   const from = validDates[0] ?? null;
   const to = validDates[validDates.length - 1] ?? null;
 
-  if (from && to) {
-    const { error: delErr } = await sb
-      .from("dispatch_plans")
-      .delete()
-      .gte("plan_date", from)
-      .lte("plan_date", to);
+  // 置換はシートに実在する日付(validDates)だけを対象にする。連続レンジ[min,max]で消すと、
+  //   タイポや中抜け日付により、その間に在る「シートに無い日付」の既存配車履歴まで巻き込んで消してしまう。
+  if (validDates.length > 0) {
+    const { error: delErr } = await sb.from("dispatch_plans").delete().in("plan_date", validDates);
     if (delErr) throw delErr;
   }
 

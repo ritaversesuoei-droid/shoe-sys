@@ -172,13 +172,14 @@ export async function recomputeAllMetrics(
             rest_period_min: metrics.restPeriodMin,
             night_min: metrics.nightMin,
             detail: judgement.items as unknown as Json,
-            status: "open",
+            // status は含めない: 更新時は既存statusを保持し、是正解消済み(resolved)を再計算でopenに戻さない。
           },
           { onConflict: "shift_id" },
         );
         alertCount += 1;
       } else {
-        await sb.from("compliance_alerts").delete().eq("shift_id", s.id);
+        // 未解消(open)のみ削除。是正解消済み(resolved)は監査証跡として残す。
+        await sb.from("compliance_alerts").delete().eq("shift_id", s.id).neq("status", "resolved");
       }
       shiftCount += 1;
     }

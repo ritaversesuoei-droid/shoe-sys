@@ -430,21 +430,25 @@ export async function saveDailyReport(
     returnAt = shTime?.clock_out_at ?? null;
   }
 
-  const header = {
+  const header: Database["public"]["Tables"]["daily_reports"]["Insert"] = {
     driver_id: driverId,
     shift_id: shiftId,
     report_date: input.report_date,
     status,
     vehicle_no: input.vehicle_no ?? null,
     crew: input.crew ?? null,
-    departure_at: departureAt,
-    return_at: returnAt,
     meter_start: input.meter_start ?? null,
     meter_end: input.meter_end ?? null,
     rest_total_min: restTotal,
     notes: input.notes ?? null,
     confirmed_at: status === "confirmed" ? new Date().toISOString() : null,
   };
+  // 運行開始/終了は勤務が解決できた時だけ設定する。解決できない時に null を書くと、
+  //   既存日報の departure_at/return_at を消してしまうため、更新では項目自体を送らず既存値を保持する。
+  if (shiftId) {
+    header.departure_at = departureAt;
+    header.return_at = returnAt;
+  }
 
   if (reportId) {
     const { error } = await sb.from("daily_reports").update(header).eq("id", reportId);
@@ -459,9 +463,11 @@ export async function saveDailyReport(
     reportId = data.id;
   }
 
-  // 明細・休憩を全置換
-  await sb.from("daily_report_legs").delete().eq("daily_report_id", reportId);
-  await sb.from("daily_report_rests").delete().eq("daily_report_id", reportId);
+  // 明細・休憩を全置換（削除失敗を握り潰さない＝挿入前に検出する）
+  const { error: delLegErr } = await sb.from("daily_report_legs").delete().eq("daily_report_id", reportId);
+  if (delLegErr) throw delLegErr;
+  const { error: delRestErr } = await sb.from("daily_report_rests").delete().eq("daily_report_id", reportId);
+  if (delRestErr) throw delRestErr;
 
   const legs = input.legs ?? [];
   if (legs.length) {

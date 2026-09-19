@@ -227,8 +227,10 @@ async function persistShiftMetrics(
     .eq("id", shift.id);
   if (updErr) throw updErr;
 
-  // 違反/警告があれば台帳へ（shift と 1:1）。無ければ既存 open を削除（再計算で解消）。
+  // 違反/警告があれば台帳へ（shift と 1:1）。無ければ既存を削除（再計算で解消）。
   if (judgement.alertTypes.length > 0) {
+    // status は payload に含めない: 更新時は既存 status を保持（是正解消済み resolved を再計算で
+    //   open に巻き戻さない＝監査証跡・月次違反件数を守る）。新規挿入時は列の既定 'open'。
     const { error: alertErr } = await sb.from("compliance_alerts").upsert(
       {
         shift_id: shift.id,
@@ -241,14 +243,13 @@ async function persistShiftMetrics(
         rest_period_min: metrics.restPeriodMin,
         night_min: metrics.nightMin,
         detail: judgement.items as unknown as Json,
-        status: "open",
       },
       { onConflict: "shift_id" },
     );
     if (alertErr) throw alertErr;
   } else {
-    // 違反なし（または協力店社＝対象外）: 既存の警告があれば解消（削除して再計算で解消）
-    await sb.from("compliance_alerts").delete().eq("shift_id", shift.id);
+    // 違反なし（または協力店社＝対象外）: 未解消(open)の警告のみ削除。是正解消済み(resolved)は監査証跡として残す。
+    await sb.from("compliance_alerts").delete().eq("shift_id", shift.id).neq("status", "resolved");
   }
 
   return { metrics, judgement };

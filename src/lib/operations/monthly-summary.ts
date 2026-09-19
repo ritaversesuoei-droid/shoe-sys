@@ -76,7 +76,10 @@ async function loadPayrollAndOverrides(
   for (const row of data ?? []) {
     if (row.key === "payroll") {
       const v = row.value as { regular_daily_min?: number } | null;
-      if (v && typeof v.regular_daily_min === "number") regularDailyMin = v.regular_daily_min;
+      // 不正値(負/0/24h超)は既定にフォールバック（残業=労働−所定 が全日過大になるのを防ぐ）
+      if (v && typeof v.regular_daily_min === "number" && v.regular_daily_min > 0 && v.regular_daily_min <= 1440) {
+        regularDailyMin = v.regular_daily_min;
+      }
     } else if (row.key === "holiday_overrides") {
       overrides = (row.value as Record<string, DayClass>) ?? {};
     }
@@ -169,7 +172,9 @@ export async function getMonthlySummary(
       nightMin: night,
       isWeekend: weekend,
       isHoliday: holiday,
-      holidayName: holidayName(s.work_date),
+      // isHoliday(手修正override反映)と整合させる: 休日扱いなら祝日名、名が無い会社指定休日は「会社休日」、
+      //   休日でない(平日/override=workday)なら名称なし。
+      holidayName: holiday ? holidayName(s.work_date) ?? "会社休日" : null,
     });
   }
 
