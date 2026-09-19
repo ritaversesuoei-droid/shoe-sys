@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionContext } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getFuelInitialData } from "@/lib/operations/fuel";
+import { getFuelInitialData, getFuelStations } from "@/lib/operations/fuel";
 import { FuelForm } from "@/components/driver/FuelForm";
 
 export const dynamic = "force-dynamic";
@@ -19,11 +19,14 @@ export default async function FuelPage() {
     .eq("id", ctx.driverId)
     .maybeSingle();
 
-  const initial = await getFuelInitialData(admin, {
-    id: ctx.driverId,
-    default_vehicle_no: drv?.default_vehicle_no ?? null,
-    target_fuel_km_l: drv?.target_fuel_km_l ?? null,
-  });
+  const [initial, stations] = await Promise.all([
+    getFuelInitialData(admin, {
+      id: ctx.driverId,
+      default_vehicle_no: drv?.default_vehicle_no ?? null,
+      target_fuel_km_l: drv?.target_fuel_km_l ?? null,
+    }),
+    getFuelStations(admin),
+  ]);
 
-  return <FuelForm driverName={drv?.name ?? ctx.displayName ?? "ドライバー"} initial={initial} />;
+  return <FuelForm driverName={drv?.name ?? ctx.displayName ?? "ドライバー"} initial={initial} stations={stations} />;
 }
