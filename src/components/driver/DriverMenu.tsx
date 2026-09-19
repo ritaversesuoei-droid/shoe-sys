@@ -7,10 +7,11 @@ import { createClient } from "@/lib/supabase/client";
 /**
  * ドライバーメニュー（現行GAS index画面の忠実再現）。
  *   - フルワイド縦積みボタン・カード枠・実機の配色/絵文字/文言
- *   - 出勤報告→「通常出勤/長距離再出発」の選択ダイアログ（消し込み）
- *   - 休憩は独立した大きなボタン→「通常休憩/分割休息/長距離休息」を選択（現場要望 2026-09-19）。
- *       通常休憩=勤務中の休憩タイマー（30分目安・押すと即カウント開始）、分割休息=通常休憩の仕組みで原則3時間
- *       （3時間未満終了はアラート＋同意）、長距離休息=泊まりの休息（勤務クローズ・再出発時にアルコールチェック）。
+ *   - 出勤報告→通常出勤へ直行（長距離再出発は休憩ダイアログへ移設・現場要望 2026-09-19）。
+ *   - 休憩は独立した大きなボタン→ダイアログで選択（現場要望 2026-09-19）。
+ *       ・勤務中の休憩: 通常休憩（30分目安・押すと即カウント開始）／分割休息（原則3時間・未満終了はアラート＋同意）
+ *       ・泊まり（長距離）: 長距離休息（勤務クローズ）→ 長距離再出発（休息あけ・アルコールチェック）
+ *       ＝「出勤→休憩→長距離再出発」の流れを1か所に集約。
  *   - 今日の履歴はインライン展開（時刻＋内容）
  */
 
@@ -77,11 +78,11 @@ const MENU: {
   key: string;
   label: string;
   bg: string;
-  dialog?: "departure" | "arrival" | "rest";
+  dialog?: "arrival" | "rest";
   href?: string;
   big?: boolean;
 }[] = [
-  { key: "departure", label: "☀️ 出勤報告", bg: "#4285f4", dialog: "departure" },
+  { key: "departure", label: "☀️ 出勤報告", bg: "#4285f4", href: "/driver/punch/departure" },
   { key: "arrival", label: "📍 到着報告", bg: "#4caf50", dialog: "arrival" },
   { key: "loading", label: "📦 積込完了(詳細)", bg: "#3d9aa5", href: "/driver/punch/loading" },
   { key: "unloading", label: "🏭 荷卸完了(詳細)", bg: "#6320ee", href: "/driver/punch/unloading" },
@@ -92,7 +93,7 @@ const MENU: {
 
 export function DriverMenu({ name }: { name: string }) {
   const router = useRouter();
-  const [dialog, setDialog] = useState<null | "departure" | "arrival" | "rest">(null);
+  const [dialog, setDialog] = useState<null | "arrival" | "rest">(null);
   const [histOpen, setHistOpen] = useState(false);
   const [events, setEvents] = useState<Ev[] | null>(null);
   const [histLoading, setHistLoading] = useState(false);
@@ -107,7 +108,7 @@ export function DriverMenu({ name }: { name: string }) {
   const arrKeyRef = useRef<string | null>(null);
   const arrBusyRef = useRef(false);
 
-  function openDialog(d: "departure" | "arrival" | "rest") {
+  function openDialog(d: "arrival" | "rest") {
     setDialog(d);
     if (d === "arrival") {
       setArrCoords(null);
@@ -248,7 +249,7 @@ export function DriverMenu({ name }: { name: string }) {
         </div>
       </div>
 
-      {/* 報告ダイアログ（出勤=通常/長距離再出発、休憩=通常休憩/分割休息/長距離休息、到着=その場で直接送信） */}
+      {/* 報告ダイアログ（休憩=通常休憩/分割休息/長距離休息/長距離再出発、到着=その場で直接送信。出勤は通常出勤へ直行） */}
       {dialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeDialog}>
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -256,7 +257,7 @@ export function DriverMenu({ name }: { name: string }) {
               {arrDone ? "✓" : "?"}
             </div>
             <h2 className="text-2xl font-bold text-slate-800">
-              {dialog === "arrival" ? "到着報告" : dialog === "departure" ? "出勤報告" : "休憩"}
+              {dialog === "arrival" ? "到着報告" : "休憩・長距離"}
             </h2>
 
             {dialog === "arrival" ? (
@@ -278,10 +279,12 @@ export function DriverMenu({ name }: { name: string }) {
                   </div>
                 </>
               )
-            ) : dialog === "rest" ? (
+            ) : (
               <>
                 <p className="mt-1 text-slate-500">休憩の種類を選んでください</p>
                 <div className="mt-5 flex flex-col gap-2 text-left">
+                  {/* ── 勤務中の休憩 ── */}
+                  <p className="px-1 text-xs font-bold text-slate-400">勤務中の休憩</p>
                   {/* 通常休憩=勤務中の休憩タイマー。押すと即カウント開始（/driver/rest で自動開始） */}
                   <button
                     onClick={() => go("/driver/rest")}
@@ -298,36 +301,27 @@ export function DriverMenu({ name }: { name: string }) {
                     <span className="block text-lg font-bold text-white">🛌 分割休息（3時間以上）</span>
                     <span className="mt-0.5 block text-xs text-indigo-50">押すとその場でカウント開始。原則3時間・未満で終了する時は同意が必要です。</span>
                   </button>
-                  {/* 長距離休息=泊まりの休息。勤務を一旦終了し、再出発時にアルコールチェック（写真）が必要 */}
+
+                  {/* ── 泊まり（長距離）：休息に入る → 再出発。出勤→休憩→長距離再出発の流れ ── */}
+                  <p className="mt-2 px-1 text-xs font-bold text-slate-400">泊まり（長距離）</p>
+                  {/* 長距離休息=泊まりの休息。勤務を一旦終了 */}
                   <button
                     onClick={() => go("/driver/punch/long_rest")}
                     className="rounded-xl bg-amber-500 px-4 py-3 active:translate-y-[1px]"
                   >
-                    <span className="block text-lg font-bold text-white">🌙 長距離休息（泊まり）</span>
-                    <span className="mt-0.5 block text-xs text-amber-50">
-                      泊まりの休息に入ります（勤務を一旦終了）。次の運転前＝「長距離再出発」でアルコールチェックが必要です。
-                    </span>
+                    <span className="block text-lg font-bold text-white">🌙 長距離休息（泊まりに入る）</span>
+                    <span className="mt-0.5 block text-xs text-amber-50">泊まりの休息に入ります（勤務を一旦終了）。</span>
                   </button>
-                  <button onClick={closeDialog} className="mt-1 rounded-lg bg-slate-500 px-4 py-2.5 text-center font-bold text-white">戻る</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="mt-1 text-slate-500">どちらの報告ですか？</p>
-                <div className="mt-5 flex flex-wrap justify-center gap-2">
-                  <button
-                    onClick={() => go("/driver/punch/departure")}
-                    className="rounded-lg bg-blue-500 px-4 py-2.5 font-bold text-white"
-                  >
-                    通常出勤
-                  </button>
+                  {/* 長距離再出発=休息あけの運転再開。アルコールチェック（写真）が必要。出勤ダイアログから移設 */}
                   <button
                     onClick={() => go("/driver/punch/leg_departure")}
-                    className="rounded-lg bg-amber-400 px-4 py-2.5 font-bold text-white"
+                    className="rounded-xl bg-orange-600 px-4 py-3 active:translate-y-[1px]"
                   >
-                    長距離再出発
+                    <span className="block text-lg font-bold text-white">🚚 長距離再出発（休息あけ）</span>
+                    <span className="mt-0.5 block text-xs text-orange-50">休息を終えて運転を再開します。アルコールチェック（撮影）が必要です。</span>
                   </button>
-                  <button onClick={closeDialog} className="rounded-lg bg-slate-500 px-4 py-2.5 font-bold text-white">戻る</button>
+
+                  <button onClick={closeDialog} className="mt-1 rounded-lg bg-slate-500 px-4 py-2.5 text-center font-bold text-white">戻る</button>
                 </div>
               </>
             )}
