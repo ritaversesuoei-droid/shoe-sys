@@ -40,6 +40,7 @@ export function LogiFlowBoard({
   confirmed,
   now,
   instructions,
+  allDrivers,
 }: {
   date: string;
   drivers: LFDriver[];
@@ -49,6 +50,7 @@ export function LogiFlowBoard({
   confirmed: boolean;
   now: string; // サーバのデータ取得時刻(ISO)。更新/自動反映のたびに再描画で更新される
   instructions: Record<string, string>; // driverId → HH:MM（出勤指示時間の初期値）
+  allDrivers: { id: string; name: string; vehicle: string | null }[]; // ドライバーマスタ全員（出勤指示の対象）
 }) {
   const router = useRouter();
   const { control: zoomControl, wrapStyle } = useBoardZoom("logiflow");
@@ -65,11 +67,8 @@ export function LogiFlowBoard({
   const chRef = useRef<RealtimeChannel | null>(null);
   const tomorrow = addDayStr(date, 1);
 
-  // 出勤指示時間の対象＝この日の盤面に出ている「登録ドライバー（id あり）」。協力/名前のみは対象外。
-  const attnDrivers = drivers
-    .filter((d): d is LFDriver & { id: string } => !!d.id)
-    .map((d) => ({ id: d.id, name: d.name, vehicle: d.vehicle }));
-  const attnSetCount = attnDrivers.filter((d) => instructions[d.id]).length;
+  // 出勤指示時間の対象＝ドライバーマスタ全員（配車の有無に関わらず設定できる）。
+  const attnSetCount = allDrivers.filter((d) => instructions[d.id]).length;
 
   // 即時反映（Realtime＋ポーリング）。編集中は refresh を止めて入力（フォーカス/キャレット）を保護。
   //   あわせて presence で自分の編集状態を共有し、他の管理者が編集中なら警告を出す（同時編集の事故防止）。
@@ -289,7 +288,7 @@ export function LogiFlowBoard({
       {attnOpen && (
         <AttendanceModal
           date={date}
-          drivers={attnDrivers}
+          drivers={allDrivers}
           initial={instructions}
           onClose={() => setAttnOpen(false)}
           onChanged={() => router.refresh()}
@@ -572,7 +571,7 @@ function AttendanceModal({
         <div className="overflow-y-auto px-4 py-3">
           <p className="mb-3 text-xs text-slate-500">
             指示時間より早い通常出勤は、ドライバーの打刻画面で<strong>アラート＋同意チェック</strong>が必要になります（同意しないと出勤ボタンは押せません）。
-            空欄にすると解除。対象はこの日の流れ表に出ている<strong>登録ドライバー</strong>のみです（協力・名前のみは対象外）。
+            空欄にすると解除。対象は<strong>ドライバーマスタ全員</strong>です（この日の配車有無に関わらず設定できます）。
           </p>
 
           {/* 一括設定バー */}
@@ -616,7 +615,7 @@ function AttendanceModal({
 
           {/* ドライバー一覧（個別） */}
           {drivers.length === 0 ? (
-            <p className="py-4 text-center text-sm text-slate-400">この日の流れ表に登録ドライバーがいません。</p>
+            <p className="py-4 text-center text-sm text-slate-400">ドライバーマスタに登録がありません。</p>
           ) : (
             <div className="flex flex-col gap-1.5">
               {drivers.map((d) => (
