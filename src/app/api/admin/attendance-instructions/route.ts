@@ -5,6 +5,7 @@ import {
   getInstructionsForDate,
   setInstructionTime,
   setInstructionTimesBulk,
+  setInstructionEntries,
   normalizeHhmm,
 } from "@/lib/operations/attendance-instruction";
 
@@ -49,26 +50,49 @@ export async function PATCH(request: Request) {
 }
 
 /**
- * PUT /api/admin/attendance-instructions  出勤指示時間の一括設定（複数ドライバーへ同一時刻）
- *   body: { date: 'yyyy-MM-dd', driver_ids: uuid[], time: 'HH:MM' | '' | null }
- *   time が空/null なら一括解除。
+ * PUT /api/admin/attendance-instructions  出勤指示時間のまとめ反映
+ *   (A) 各ドライバー個別:  body: { date, entries: [{ driver_id, time }] }  ←モーダルの「反映」
+ *       time が空/null/不正 のドライバーは解除。
+ *   (B) 複数へ同一時刻:    body: { date, driver_ids: uuid[], time }        ←後方互換
+ *       time が空/null なら一括解除。
  */
 export async function PUT(request: Request) {
   return handle(async () => {
     await requireAdmin();
-    const body = (await request.json()) as { date?: string; driver_ids?: string[]; time?: string | null };
+    const body = (await request.json()) as {
+      date?: string;
+      driver_ids?: string[];
+      time?: string | null;
+      entries?: { driver_id?: string; time?: string | null }[];
+    };
     const date = body.date ?? "";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail("date は yyyy-MM-dd 形式", 400);
+
+    const supabase = await createClient();
+
+    // (A) 個別まとめ
+    if (Array.isArray(body.entries)) {
+      const entries = body.entries
+        .filter((e): e is { driver_id: string; time?: string | null } => !!e && typeof e.driver_id === "string" && e.driver_id.length > 0)
+        .map((e) => {
+          const raw = e.time ?? null;
+          return { driverId: e.driver_id, time: raw && String(raw).trim() !== "" ? normalizeHhmm(String(raw)) : null };
+        });
+      if (entries.length === 0) return fail("entries は必須（1件以上）", 400);
+      const res = await setInstructionEntries(supabase, date, entries);
+      return ok({ date, ...res });
+    }
+
+    // (B) 同一時刻の一括
     const ids = Array.isArray(body.driver_ids)
       ? body.driver_ids.filter((x): x is string => typeof x === "string" && x.length > 0)
       : [];
-    if (ids.length === 0) return fail("driver_ids は必須（1件以上）", 400);
+    if (ids.length === 0) return fail("entries または driver_ids が必要", 400);
 
     const raw = body.time ?? null;
     const time = raw && raw.trim() !== "" ? normalizeHhmm(raw) : null;
     if (raw && raw.trim() !== "" && time === null) return fail("time は HH:MM 形式（00:00〜23:59）", 400);
 
-    const supabase = await createClient();
     const res = await setInstructionTimesBulk(supabase, date, ids, time);
     return ok({ date, ...res });
   });
