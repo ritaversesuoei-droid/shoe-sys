@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { FuelInitialData } from "@/lib/operations/fuel";
+import type { FuelInitialData, FuelStation } from "@/lib/operations/fuel";
 
 /**
  * 給油記録フォーム（現行GAS「DIESEL PUMP LOG」の同デザイン・同仕様移植）。
@@ -58,15 +58,20 @@ const RETRO_CSS = `
 @keyframes fuelpulse{from{transform:scale(.85);}to{transform:scale(1.15);}}
 `;
 
-type Station = "" | "usami" | "union";
 type Step = "vehicle" | "station" | "odo" | "liters" | "send";
 
-const stationLabel = (s: Station) => (s === "usami" ? "宇佐美鉱油" : s === "union" ? "トラック組合" : "");
-
-export function FuelForm({ driverName, initial }: { driverName: string; initial: FuelInitialData }) {
+export function FuelForm({
+  driverName,
+  initial,
+  stations,
+}: {
+  driverName: string;
+  initial: FuelInitialData;
+  stations: FuelStation[];
+}) {
   const router = useRouter();
   const [vehicle, setVehicle] = useState(initial.baseVehicle ?? "");
-  const [station, setStation] = useState<Station>("");
+  const [station, setStation] = useState(""); // 選択中の給油所名
   const [isFull, setIsFull] = useState(false);
   const [odo, setOdo] = useState("");
   const [liters, setLiters] = useState("");
@@ -87,11 +92,12 @@ export function FuelForm({ driverName, initial }: { driverName: string; initial:
   const [lastOdoMap, setLastOdoMap] = useState<Record<string, number>>(initial.lastOdoMap);
   useEffect(() => setLastOdoMap(initial.lastOdoMap), [initial.lastOdoMap]);
 
-  // トラック組合＝満タン強制。宇佐美＝満タン/つなぎ選択可。
-  const fullLocked = station === "union";
+  // 給油所ごとの「満タン固定」フラグ（例: トラック組合）。固定の給油所を選ぶと満タンON＋ロック。
+  const selectedStation = stations.find((s) => s.name === station);
+  const fullLocked = selectedStation?.forceFull ?? false;
   useEffect(() => {
-    if (station === "union") setIsFull(true);
-  }, [station]);
+    if (fullLocked) setIsFull(true);
+  }, [fullLocked]);
 
   const vCode = vehicle.trim();
   const prevOdo = lastOdoMap[vCode];
@@ -131,13 +137,13 @@ export function FuelForm({ driverName, initial }: { driverName: string; initial:
       const res = await fetch("/api/fuel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vehicle_no: vCode, station: stationLabel(station), odometer: odoNum, liters: litersNum, is_full: isFull }),
+        body: JSON.stringify({ vehicle_no: vCode, station, odometer: odoNum, liters: litersNum, is_full: isFull }),
       });
       const d = await res.json();
       if (!d.success) throw new Error(d.error ?? "送信に失敗しました");
 
       const deltaKm = Number(d.delta_km ?? 0);
-      const sub = `走行: ${deltaKm.toLocaleString()}km / 給油: ${litersNum}L / 地点: ${stationLabel(station)}`;
+      const sub = `走行: ${deltaKm.toLocaleString()}km / 給油: ${litersNum}L / 地点: ${station}`;
       if (!isFull || d.fuel_km_l == null) {
         setResult({ good: null, fuel: "--", target: `${initial.targetFuel.toFixed(2)} km/L`, diff: "--", sub });
       } else {
@@ -231,17 +237,15 @@ export function FuelForm({ driverName, initial }: { driverName: string; initial:
         )}
       </div>
 
-      {/* 給油区分 */}
+      {/* 給油区分（給油所マスタから動的表示・管理画面で増減可） */}
       <label>STATION / 給油区分</label>
-      <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
-        <label className={`checkbox-row ${focus("station")}`} style={{ flex: 1, marginTop: 0 }}>
-          <input type="radio" name="station" checked={station === "usami"} onChange={() => setStation("usami")} />
-          <span className="checkbox-label">宇佐美鉱油</span>
-        </label>
-        <label className={`checkbox-row ${focus("station")}`} style={{ flex: 1, marginTop: 0 }}>
-          <input type="radio" name="station" checked={station === "union"} onChange={() => setStation("union")} />
-          <span className="checkbox-label">トラック組合</span>
-        </label>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 6 }}>
+        {stations.map((s) => (
+          <label key={s.name} className={`checkbox-row ${focus("station")}`} style={{ flex: "1 1 45%", marginTop: 0 }}>
+            <input type="radio" name="station" checked={station === s.name} onChange={() => setStation(s.name)} />
+            <span className="checkbox-label">{s.name}</span>
+          </label>
+        ))}
       </div>
 
       {/* 満タン */}

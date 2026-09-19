@@ -22,6 +22,32 @@ export const FUEL_LIMITS = {
   maxLitersStat: 2000,
 } as const;
 
+// 給油所（給油区分）マスタ。名称＋「満タン固定」フラグ（例: トラック組合は常に満タン給油）。
+//   app_settings('fuel_stations').list に保存（マイグレーション不要・管理画面で増減）。
+export interface FuelStation {
+  name: string;
+  forceFull: boolean; // true=この給油所は満タン固定（つなぎ不可）
+}
+export const DEFAULT_FUEL_STATIONS: FuelStation[] = [
+  { name: "宇佐美鉱油", forceFull: false },
+  { name: "トラック組合", forceFull: true },
+];
+
+/** 給油所マスタを取得（未設定なら既定の2件）。 */
+export async function getFuelStations(sb: SB): Promise<FuelStation[]> {
+  const { data } = await sb.from("app_settings").select("value").eq("key", "fuel_stations").maybeSingle();
+  const list = (data?.value as { list?: unknown } | null)?.list;
+  if (!Array.isArray(list)) return DEFAULT_FUEL_STATIONS;
+  const cleaned = list
+    .map((s) => {
+      const o = s as { name?: unknown; forceFull?: unknown };
+      const name = typeof o?.name === "string" ? o.name.trim() : "";
+      return name ? { name, forceFull: o?.forceFull === true } : null;
+    })
+    .filter((s): s is FuelStation => s !== null);
+  return cleaned.length ? cleaned : DEFAULT_FUEL_STATIONS;
+}
+
 export interface PriorFill {
   odometer: number;
   liters: number;
