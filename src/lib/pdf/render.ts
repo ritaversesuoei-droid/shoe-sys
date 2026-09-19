@@ -25,13 +25,24 @@ async function launchBrowser(): Promise<Browser> {
 
   // (2) サーバーレス: 明示パスが無ければ @sparticuz/chromium を使用（動的import=ローカルでは読み込まない）
   if (!envPath && isServerless()) {
+    // @sparticuz/chromium は AWS_EXECUTION_ENV でランタイム(AL2/AL2023)を判定し、その時だけ共有ライブラリ
+    //   (libnss3.so 等 = al2*.tar.br) を /tmp/al2(023)/lib に展開し LD_LIBRARY_PATH を通す。
+    //   Vercel はこの変数を期待どおり設定しないため判定が false になり、lib を展開せず
+    //   「libnss3.so: cannot open shared object file」で起動失敗する。
+    //   → import 前に Node のメジャーバージョンに合わせて設定する（モジュール top-level で
+    //     LD_LIBRARY_PATH を組む処理が走るため、import より必ず前に設定する必要がある）。
+    if (!/AWS_Lambda_nodejs/.test(process.env.AWS_EXECUTION_ENV ?? "")) {
+      const nodeMajor = Number(process.versions.node.split(".")[0]) || 0;
+      // 20.x/22.x → AL2023(al2023.tar.br) / それ未満 → AL2(al2.tar.br)
+      process.env.AWS_EXECUTION_ENV = nodeMajor >= 20 ? "AWS_Lambda_nodejs20.x" : "AWS_Lambda_nodejs18.x";
+    }
     const chromium = (await import("@sparticuz/chromium")).default;
-    // 同梱の日本語フォント(fonts.tar.br)を確実にロードさせる（豆腐□対策）。
+    // 同梱の日本語フォント(fonts.tar.br)も executablePath() 内で /tmp/fonts へ展開される（豆腐□対策）。
     return puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
-      headless: true,
+      headless: chromium.headless,
     });
   }
 
