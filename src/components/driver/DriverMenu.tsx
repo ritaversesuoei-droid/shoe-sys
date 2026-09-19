@@ -8,8 +8,9 @@ import { createClient } from "@/lib/supabase/client";
  * ドライバーメニュー（現行GAS index画面の忠実再現）。
  *   - フルワイド縦積みボタン・カード枠・実機の配色/絵文字/文言
  *   - 出勤報告→「通常出勤/長距離再出発」の選択ダイアログ（消し込み）
- *   - 休憩は独立した大きなボタン→「通常休憩/長距離休息」を選択（現場要望 2026-09-19）。
- *       通常休憩=勤務中の休憩タイマー（押すと即カウント開始）、長距離休息=泊まりの休息（勤務クローズ・再出発時にアルコールチェック）。
+ *   - 休憩は独立した大きなボタン→「通常休憩/分割休息/長距離休息」を選択（現場要望 2026-09-19）。
+ *       通常休憩=勤務中の休憩タイマー（30分目安・押すと即カウント開始）、分割休息=通常休憩の仕組みで原則3時間
+ *       （3時間未満終了はアラート＋同意）、長距離休息=泊まりの休息（勤務クローズ・再出発時にアルコールチェック）。
  *   - 今日の履歴はインライン展開（時刻＋内容）
  */
 
@@ -247,7 +248,7 @@ export function DriverMenu({ name }: { name: string }) {
         </div>
       </div>
 
-      {/* 報告ダイアログ（出勤=通常/長距離再出発、休憩=通常休憩/長距離休息、到着=その場で直接送信） */}
+      {/* 報告ダイアログ（出勤=通常/長距離再出発、休憩=通常休憩/分割休息/長距離休息、到着=その場で直接送信） */}
       {dialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeDialog}>
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -288,6 +289,14 @@ export function DriverMenu({ name }: { name: string }) {
                   >
                     <span className="block text-lg font-bold text-white">☕ 通常休憩</span>
                     <span className="mt-0.5 block text-xs text-blue-50">押すとその場でカウント開始（30分タイマー）。勤務は続きます。</span>
+                  </button>
+                  {/* 分割休息=通常休憩の仕組みで実行。原則3時間、3時間未満で終了する時はアラート＋同意 */}
+                  <button
+                    onClick={() => go("/driver/rest?mode=split")}
+                    className="rounded-xl bg-indigo-500 px-4 py-3 active:translate-y-[1px]"
+                  >
+                    <span className="block text-lg font-bold text-white">🛌 分割休息（3時間以上）</span>
+                    <span className="mt-0.5 block text-xs text-indigo-50">押すとその場でカウント開始。原則3時間・未満で終了する時は同意が必要です。</span>
                   </button>
                   {/* 長距離休息=泊まりの休息。勤務を一旦終了し、再出発時にアルコールチェック（写真）が必要 */}
                   <button
