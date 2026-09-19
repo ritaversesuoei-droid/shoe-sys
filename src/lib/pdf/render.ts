@@ -1,7 +1,8 @@
 import "server-only";
 
-import puppeteer, { type Browser } from "puppeteer-core";
+import puppeteer, { type Browser, type Page } from "puppeteer-core";
 import { AppError } from "@/lib/errors";
+import { withJpFont } from "@/lib/pdf/jp-font";
 
 /**
  * HTML → PDF（仕様書 F-17 / 13章G: Puppeteer）。
@@ -56,6 +57,29 @@ async function launchBrowser(): Promise<Browser> {
   });
 }
 
+/**
+ * 埋め込み日本語フォント(Noto Sans JP 400/700)を出力前に確実にロードさせる。
+ *   font-display:block + 遅延読み込みのため、明示ロード→fonts.ready を待たないと、
+ *   まだ読み込まれていないウェイトの文字が空白で出力されるレースがある。
+ */
+async function ensureFontsLoaded(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    type Fonts = { load?: (font: string) => Promise<unknown>; ready?: Promise<unknown> };
+    const fonts = (document as unknown as { fonts?: Fonts }).fonts;
+    try {
+      if (fonts?.load) {
+        await Promise.all([
+          fonts.load('400 16px "Noto Sans JP"'),
+          fonts.load('700 16px "Noto Sans JP"'),
+        ]);
+      }
+      await fonts?.ready;
+    } catch {
+      /* fonts API 非対応環境でも続行 */
+    }
+  });
+}
+
 export interface PdfOptions {
   format?: "A4"; // 名前付きフォーマット（A4のみ・B系は未対応）。未指定は既定の寸法指定(B5横)。
   landscape?: boolean;
@@ -77,7 +101,8 @@ export async function htmlToPdf(html: string, opts: PdfOptions = {}): Promise<Ui
   }
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(withJpFont(html), { waitUntil: "networkidle0" });
+    await ensureFontsLoaded(page);
     const pdf = opts.format
       ? await page.pdf({
           format: opts.format,
@@ -107,7 +132,8 @@ export async function htmlToPng(
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: opts.width, height: opts.height, deviceScaleFactor: 1 });
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(withJpFont(html), { waitUntil: "networkidle0" });
+    await ensureFontsLoaded(page);
     const buf = await page.screenshot({
       type: "png",
       clip: { x: 0, y: 0, width: opts.width, height: opts.height },

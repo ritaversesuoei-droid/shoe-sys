@@ -137,6 +137,52 @@ export async function setInstructionTimesBulk(
   return { count, time: norm };
 }
 
+/**
+ * 各ドライバー個別の時刻をまとめて反映（1回の読み書き）。モーダルの「最後に反映」用。
+ *   entries: [{driverId, time}]。time が null/空/不正 のドライバーは解除。古い日付は剪定。
+ */
+export async function setInstructionEntries(
+  sb: SB,
+  workDate: string,
+  entries: { driverId: string; time: string | null }[],
+): Promise<{ set: number; cleared: number }> {
+  const map = await readMap(sb);
+  let set = 0;
+  let cleared = 0;
+  for (const { driverId, time } of entries) {
+    if (!driverId) continue;
+    const key = instructionKey(driverId, workDate);
+    const norm = normalizeHhmm(time);
+    if (norm) {
+      map[key] = norm;
+      set++;
+    } else {
+      delete map[key];
+      cleared++;
+    }
+  }
+
+  // 剪定: 古い日付を落としてマップ肥大化を防ぐ
+  const cutoff = toWorkDate(new Date(Date.now() - PRUNE_BEFORE_DAYS * 86_400_000));
+  for (const k of Object.keys(map)) {
+    const d = k.split("|")[1];
+    if (d && d < cutoff) delete map[k];
+  }
+
+  const { error } = await sb
+    .from("app_settings")
+    .upsert(
+      {
+        key: KEY_INSTRUCTIONS,
+        value: map as unknown as Json,
+        description: "出勤指示時間（driverId|yyyy-mm-dd → HH:MM, JST）",
+      },
+      { onConflict: "key" },
+    );
+  if (error) throw error;
+  return { set, cleared };
+}
+
 /** 早すぎ判定の猶予（分）。app_settings('attendance').early_departure_grace_min（既定0）。 */
 export async function getEarlyGraceMin(sb: SB): Promise<number> {
   const { data } = await sb.from("app_settings").select("value").eq("key", KEY_ATTENDANCE).maybeSingle();

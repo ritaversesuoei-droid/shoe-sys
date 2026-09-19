@@ -460,6 +460,7 @@ function AttendanceModal({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  // times は「下書き」。個別入力・一括入力はここを書き換えるだけで、保存は最後の「反映」で一括実行する。
   const [times, setTimes] = useState<Record<string, string>>(() => {
     const o: Record<string, string> = {};
     for (const d of drivers) {
@@ -468,7 +469,14 @@ function AttendanceModal({
     }
     return o;
   });
-  const savedRef = useRef<Record<string, string>>({ ...times });
+  const [saved, setSaved] = useState<Record<string, string>>(() => {
+    const o: Record<string, string> = {};
+    for (const d of drivers) {
+      const t = initial[d.id];
+      if (t) o[d.id] = t;
+    }
+    return o;
+  });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkTime, setBulkTime] = useState("");
   const [busy, setBusy] = useState(false);
@@ -477,6 +485,8 @@ function AttendanceModal({
 
   const setCount = Object.values(times).filter(Boolean).length;
   const allSelected = drivers.length > 0 && selected.size === drivers.length;
+  // 未保存（下書きと保存済みが違う）か
+  const dirty = drivers.some((d) => (times[d.id] ?? "") !== (saved[d.id] ?? ""));
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -490,22 +500,43 @@ function AttendanceModal({
     setSelected(allSelected ? new Set() : new Set(drivers.map((d) => d.id)));
   }
 
-  /** 個別保存（空欄で解除）。値が変わっていなければ何もしない。 */
-  async function saveOne(id: string, time: string) {
-    if ((savedRef.current[id] ?? "") === (time ?? "")) return;
+  /** 一括「入力」= 下書きへ反映するだけ（保存はしない）。time="" でクリア。 */
+  function bulkFill(ids: string[], time: string) {
+    if (ids.length === 0) {
+      setErr("対象の人にチェックを入れてください（または「全員へ」）。");
+      return;
+    }
+    setErr(null);
+    setMsg(null);
+    setTimes((prev) => {
+      const next = { ...prev };
+      for (const id of ids) {
+        if (time) next[id] = time;
+        else delete next[id];
+      }
+      return next;
+    });
+  }
+
+  /** 最後にまとめて保存（下書きの全内容を一括反映）。 */
+  async function applyAll() {
     setBusy(true);
     setErr(null);
     setMsg(null);
     try {
+      const entries = drivers.map((d) => ({ driver_id: d.id, time: times[d.id] || null }));
       const res = await fetch("/api/admin/attendance-instructions", {
-        method: "PATCH",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ driver_id: id, date, time: time || null }),
+        body: JSON.stringify({ date, entries }),
       });
       const d = await res.json();
-      if (!d.success) throw new Error(d.error ?? "保存に失敗しました");
-      if (time) savedRef.current[id] = time;
-      else delete savedRef.current[id];
+      if (!d.success) throw new Error(d.error ?? "反映に失敗しました");
+      // 保存済みスナップショットを更新（dirty 解消）
+      const snap: Record<string, string> = {};
+      for (const dr of drivers) if (times[dr.id]) snap[dr.id] = times[dr.id]!;
+      setSaved(snap);
+      setMsg(`反映しました（設定 ${Object.keys(snap).length}名）`);
       onChanged();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -514,90 +545,55 @@ function AttendanceModal({
     }
   }
 
-  /** 一括適用/解除。ids へ同一時刻（time=null で解除）。 */
-  async function bulkApply(ids: string[], time: string | null) {
-    if (ids.length === 0) {
-      setErr("対象の人を選んでください（または「全員へ」）。");
-      return;
-    }
-    if (time !== null && !time) {
-      setErr("一括で設定する時刻を入力してください。");
-      return;
-    }
-    setBusy(true);
-    setErr(null);
-    setMsg(null);
-    try {
-      const res = await fetch("/api/admin/attendance-instructions", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, driver_ids: ids, time }),
-      });
-      const d = await res.json();
-      if (!d.success) throw new Error(d.error ?? "一括設定に失敗しました");
-      setTimes((prev) => {
-        const next = { ...prev };
-        for (const id of ids) {
-          if (time) next[id] = time;
-          else delete next[id];
-        }
-        return next;
-      });
-      for (const id of ids) {
-        if (time) savedRef.current[id] = time;
-        else delete savedRef.current[id];
-      }
-      setMsg(time ? `${ids.length}名を ${time} に設定しました` : `${ids.length}名を解除しました`);
-      onChanged();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+  function handleClose() {
+    if (dirty && !confirm("未保存の変更があります。閉じると反映していない入力は破棄されます。閉じますか？")) return;
+    onClose();
   }
 
   const allIds = drivers.map((d) => d.id);
   const selIds = [...selected];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={handleClose}>
       <div className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-xl border-2 border-indigo-700 bg-white" onClick={(e) => e.stopPropagation()}>
         {/* ヘッダ */}
         <div className="flex items-center justify-between rounded-t-xl bg-indigo-700 px-4 py-3 text-white">
           <h3 className="text-base font-black">⏰ 出勤指示時間　<span className="font-bold">{date}</span></h3>
-          <button onClick={onClose} className="rounded px-2 text-xl font-bold hover:bg-indigo-600">×</button>
+          <button onClick={handleClose} className="rounded px-2 text-xl font-bold hover:bg-indigo-600">×</button>
         </div>
 
         <div className="overflow-y-auto px-4 py-3">
           <p className="mb-3 text-xs text-slate-500">
             指示時間より早い通常出勤は、ドライバーの打刻画面で<strong>アラート＋同意チェック</strong>が必要になります（同意しないと出勤ボタンは押せません）。
-            空欄にすると解除。対象は<strong>ドライバーマスタ全員</strong>です（この日の配車有無に関わらず設定できます）。
+            対象は<strong>ドライバーマスタ全員</strong>です。<strong>一人ずつ手入力</strong>（空欄で解除）でき、下の一括入力も使えます。
+            入力しただけでは保存されません。<strong>最後に「反映（保存）」</strong>を押してください。
           </p>
 
-          {/* 一括設定バー */}
+          {/* 一括入力バー（下書きへ入力するだけ／保存は最後の反映） */}
           <div className="mb-3 rounded-lg border border-indigo-200 bg-indigo-50/60 p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="text-sm font-bold text-indigo-800">一括設定</span>
+              <span className="text-sm font-bold text-indigo-800">一括入力</span>
               <input
                 type="time"
                 value={bulkTime}
                 onChange={(e) => setBulkTime(e.target.value)}
                 className="rounded border border-slate-300 px-2 py-1.5 text-sm"
               />
-              <button onClick={() => bulkApply(selIds, bulkTime)} disabled={busy} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-bold text-white disabled:opacity-50">
-                選択者へ適用{selected.size > 0 ? `（${selected.size}名）` : ""}
+              <button onClick={() => bulkFill(selIds, bulkTime)} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-bold text-white">
+                選択者へ入力{selected.size > 0 ? `（${selected.size}名）` : ""}
               </button>
-              <button onClick={() => bulkApply(allIds, bulkTime)} disabled={busy} className="rounded-lg bg-indigo-800 px-3 py-1.5 text-sm font-bold text-white disabled:opacity-50">
-                全員へ適用（{drivers.length}名）
+              <button onClick={() => bulkFill(allIds, bulkTime)} className="rounded-lg bg-indigo-800 px-3 py-1.5 text-sm font-bold text-white">
+                全員へ入力（{drivers.length}名）
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button onClick={() => bulkApply(selIds, null)} disabled={busy} className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-600 disabled:opacity-50">
-                選択者を解除
+              <button onClick={() => bulkFill(selIds, "")} className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-600">
+                選択者をクリア
               </button>
-              <button onClick={() => bulkApply(allIds, null)} disabled={busy} className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-600 disabled:opacity-50">
-                全員を解除
+              <button onClick={() => bulkFill(allIds, "")} className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-600">
+                全員をクリア
               </button>
+              <span className="text-[11px] text-slate-400">※入力欄に反映するだけ。保存は最後の「反映」で。</span>
             </div>
           </div>
 
@@ -610,17 +606,20 @@ function AttendanceModal({
               <input type="checkbox" checked={allSelected} onChange={toggleAll} className="h-4 w-4" />
               全選択
             </label>
-            <span className="text-xs text-slate-400">設定済 {setCount} / {drivers.length}名</span>
+            <span className="text-xs text-slate-400">
+              入力済 {setCount} / {drivers.length}名{dirty && <span className="ml-1 font-bold text-amber-600">・未保存</span>}
+            </span>
           </div>
 
-          {/* ドライバー一覧（個別） */}
+          {/* ドライバー一覧（一人ずつ手入力） */}
           {drivers.length === 0 ? (
             <p className="py-4 text-center text-sm text-slate-400">ドライバーマスタに登録がありません。</p>
           ) : (
             <div className="flex flex-col gap-1.5">
-              {drivers.map((d) => (
+              {drivers.map((d, i) => (
                 <div key={d.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${selected.has(d.id) ? "border-indigo-400 bg-indigo-50/50" : "border-slate-200 bg-white"}`}>
                   <input type="checkbox" checked={selected.has(d.id)} onChange={() => toggle(d.id)} className="h-4 w-4 shrink-0" />
+                  <span className="w-6 shrink-0 text-right text-[11px] text-slate-400">{i + 1}</span>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-bold text-slate-700">{d.name}</div>
                     {d.vehicle && <div className="truncate text-[11px] text-slate-400">{d.vehicle}</div>}
@@ -628,9 +627,7 @@ function AttendanceModal({
                   <input
                     type="time"
                     value={times[d.id] ?? ""}
-                    disabled={busy}
                     onChange={(e) => setTimes((prev) => ({ ...prev, [d.id]: e.target.value }))}
-                    onBlur={(e) => saveOne(d.id, e.target.value)}
                     className="shrink-0 rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline focus:outline-1 focus:outline-indigo-500"
                   />
                 </div>
@@ -641,8 +638,17 @@ function AttendanceModal({
 
         {/* フッタ */}
         <div className="flex items-center justify-end gap-2 rounded-b-xl border-t border-slate-200 px-4 py-3">
-          <span className="mr-auto text-xs text-slate-400">{busy ? "保存中…" : "変更は自動保存されます"}</span>
-          <button onClick={onClose} className="rounded-lg bg-slate-800 px-5 py-2 text-sm font-bold text-white">閉じる</button>
+          <span className="mr-auto text-xs text-slate-400">
+            {busy ? "反映中…" : dirty ? "未保存の変更があります" : "保存済み"}
+          </span>
+          <button onClick={handleClose} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">閉じる</button>
+          <button
+            onClick={applyAll}
+            disabled={busy || !dirty}
+            className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-black text-white shadow disabled:opacity-40"
+          >
+            {busy ? "反映中…" : "反映（保存）"}
+          </button>
         </div>
       </div>
     </div>
