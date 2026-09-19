@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/photo";
-import { to_month_key } from "@/lib/datekey";
+import { to_month_key, toWorkDate } from "@/lib/datekey";
+import { isEarlyDeparture } from "@/lib/operations/attendance-instruction";
 import { TenkeyInput } from "@/components/driver/TenkeyInput";
 
 type EventType =
@@ -65,12 +66,16 @@ export function PunchForm({
   driverName,
   vehicleNo,
   unloadTargets = [],
+  instructionTime = null,
+  graceMin = 0,
 }: {
   type: EventType;
   driverId: string;
   driverName?: string | null;
   vehicleNo: string | null;
   unloadTargets?: string[];
+  instructionTime?: string | null; // 通常出勤の出勤指示時間(HH:MM, JST)。早すぎ出勤の同意ゲートに使用
+  graceMin?: number; // 指示時間より何分前からアラートを出すか（既定0）
 }) {
   const cfg = CONFIG[type];
   // 目的別モード: unload=荷卸（対象選択＋確認項目） / detail=積込（明細） /
@@ -101,6 +106,8 @@ export function PunchForm({
   const [receipts, setReceipts] = useState("");
   const [roundTrip, setRoundTrip] = useState(false);
   const [splitRest, setSplitRest] = useState(false); // 長距離再出発: 直前の休息が分割休息だったか
+  const [earlyAck, setEarlyAck] = useState(false); // 通常出勤: 早すぎ出勤の同意チェック
+  const [nowMs, setNowMs] = useState<number>(() => Date.now()); // 早すぎ判定のライブ時刻
 
   // 冪等キーは「フォーム操作1回」に固定する。submit 内で毎回 randomUUID すると、
   //   二度押しや失敗後リトライで別キーになりサーバの冪等判定が効かず重複打刻になる。
@@ -115,6 +122,13 @@ export function PunchForm({
     setPreviews(urls);
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
   }, [photos]);
+
+  // 早すぎ出勤の判定用にライブ時刻を更新（通常出勤で指示時間がある時のみ）。時間が過ぎればアラートは自動で消える。
+  useEffect(() => {
+    if (type !== "departure" || !instructionTime) return;
+    const iv = setInterval(() => setNowMs(Date.now()), 15000);
+    return () => clearInterval(iv);
+  }, [type, instructionTime]);
 
   // 位置情報の取得（車番はドライバー割当で確定・入力不要）
   useEffect(() => {
@@ -172,6 +186,11 @@ export function PunchForm({
     setPlansOpen(false);
   }
 
+  // 通常出勤: 出勤指示時間より早い出勤か（ライブ判定）。true の間は同意チェックが必要。
+  const earlyDeparture =
+    type === "departure" &&
+    isEarlyDeparture(new Date(nowMs).toISOString(), toWorkDate(new Date(nowMs)), instructionTime, graceMin);
+
   async function submit() {
     if (submittingRef.current) return; // 二度押しは即return（重複POST防止）
     submittingRef.current = true;
@@ -179,6 +198,8 @@ export function PunchForm({
     setError(null);
     try {
       if (mode === "photo" && photos.length === 0) throw new Error("写真を撮影してください");
+      // 早すぎ出勤は同意チェック必須（同意しないと送信不可）
+      if (earlyDeparture && !earlyAck) throw new Error("出勤指示時間より早い出勤です。内容を確認し、同意にチェックしてください");
 
       const idempotencyKey = idemKeyRef.current!;
 
@@ -225,7 +246,13 @@ export function PunchForm({
         // 長距離再出発: 直前の休息が分割休息だったか（当該勤務の split_rest を立てる）
         split_rest: type === "leg_departure" && splitRest ? true : undefined,
         checks: mode === "unload" ? unloadChecks : undefined,
-        note: mode === "detail" || mode === "unload" ? note || undefined : undefined,
+        // 早出同意は監査のため note に記録（管理側の打刻履歴で確認可能）
+        note:
+          mode === "detail" || mode === "unload"
+            ? note || undefined
+            : earlyDeparture && earlyAck
+              ? `早出同意: 出勤指示 ${instructionTime}（承知の上で出勤）`
+              : undefined,
         items:
           mode === "detail"
             ? cleanItems.length
@@ -339,9 +366,42 @@ export function PunchForm({
             <p className="mt-3 text-lg font-bold text-slate-800">{CONFIRM_META[type]?.msg}</p>
             <p className="mt-2 text-sm text-slate-500">位置情報: {geoText}{geoState === "error" && "（送信は可能）"}</p>
           </div>
+
+          {/* 早すぎ出勤アラート＋同意ゲート（通常出勤・指示時間より早い場合のみ） */}
+          {earlyDeparture && (
+            <div className="rounded-2xl border-2 border-red-400 bg-red-50 p-4">
+              <p className="text-center text-lg font-black text-red-700">⚠ 出勤指示時間より早い出勤です</p>
+              <p className="mt-1 text-center text-sm font-bold text-red-600">
+                出勤指示時間：{instructionTime}
+              </p>
+              <p className="mt-2 text-xs text-red-700">
+                指示時間より前の出勤は拘束時間に影響します。やむを得ず早く出勤する場合は、下記に同意のうえ打刻してください。
+              </p>
+              <label className="mt-3 flex items-start gap-3 rounded-xl border-2 border-red-300 bg-white p-3 active:scale-[0.99]">
+                <input
+                  type="checkbox"
+                  checked={earlyAck}
+                  onChange={(e) => setEarlyAck(e.target.checked)}
+                  className="mt-0.5 h-6 w-6 flex-none accent-red-600"
+                />
+                <span className="text-sm font-bold text-slate-800">
+                  出勤指示時間より早いことを承知の上で出勤します
+                </span>
+              </label>
+            </div>
+          )}
+
           {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
-          <button onClick={submit} disabled={submitting} className="rounded-2xl bg-slate-900 px-4 py-5 text-xl font-bold text-white active:scale-[0.99] disabled:opacity-50">
-            {submitting ? "送信中..." : `${CONFIRM_META[type]?.short}を送信`}
+          <button
+            onClick={submit}
+            disabled={submitting || (earlyDeparture && !earlyAck)}
+            className="rounded-2xl bg-slate-900 px-4 py-5 text-xl font-bold text-white active:scale-[0.99] disabled:opacity-50"
+          >
+            {submitting
+              ? "送信中..."
+              : earlyDeparture && !earlyAck
+                ? "同意にチェックしてください"
+                : `${CONFIRM_META[type]?.short}を送信`}
           </button>
           <Link href="/driver" className="rounded-xl border-2 border-slate-300 px-4 py-3 text-center text-base font-bold text-slate-600 active:scale-[0.99]">← 戻る</Link>
         </div>

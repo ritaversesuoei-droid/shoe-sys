@@ -2,6 +2,8 @@ import { redirect, notFound } from "next/navigation";
 import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PunchForm } from "@/components/driver/PunchForm";
+import { toWorkDate } from "@/lib/datekey";
+import { getInstructionTime, getEarlyGraceMin } from "@/lib/operations/attendance-instruction";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +60,17 @@ export default async function PunchPage({
     ];
   }
 
+  // 通常出勤: 出勤指示時間（本人・当日）と猶予を取得。打刻画面で早すぎ出勤のアラート＋同意ゲートに使う。
+  let instructionTime: string | null = null;
+  let graceMin = 0;
+  if (type === "departure") {
+    const today = toWorkDate(new Date());
+    [instructionTime, graceMin] = await Promise.all([
+      getInstructionTime(supabase, ctx.driverId, today),
+      getEarlyGraceMin(supabase),
+    ]);
+  }
+
   return (
     <PunchForm
       type={type as ValidType}
@@ -65,6 +78,8 @@ export default async function PunchPage({
       driverName={drv?.name ?? null}
       vehicleNo={drv?.default_vehicle_no ?? null}
       unloadTargets={unloadTargets}
+      instructionTime={instructionTime}
+      graceMin={graceMin}
     />
   );
 }
