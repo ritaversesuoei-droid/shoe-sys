@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -180,7 +180,7 @@ function mapUrlForEvent(e: TimEvent): string | null {
 function EventsStrip({ events, name, onOpen }: { events: TimEvent[]; name: string; onOpen: (d: { ev: TimEvent; name: string }) => void }) {
   // 盤面全体を一括で横スクロールするため、行ごとの個別スクロールは廃止（親コンテナがまとめて横スクロール）。
   return (
-    <div className="flex flex-1 flex-nowrap items-stretch gap-1.5 bg-slate-50 px-2 py-2">
+    <div className="flex flex-1 flex-nowrap items-stretch justify-end gap-1.5 bg-slate-50 px-2 py-2">
         {events.length === 0 ? (
           <span className="px-2 py-3 text-xs text-slate-400">打刻なし</span>
         ) : (
@@ -252,6 +252,14 @@ export function TimBoard({
       supabase.removeChannel(channel);
     };
   }, [router]);
+
+  // 右揃えで最新を常に表示: 打刻が増えたら盤面を右端まで自動スクロール（名前列は左固定のまま）。
+  const boardRef = useRef<HTMLDivElement>(null);
+  const totalEvents = rows.reduce((s, r) => s + r.events.length, 0);
+  useEffect(() => {
+    const el = boardRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [totalEvents]);
 
   async function saveLimit() {
     setSavingLimit(true);
@@ -338,8 +346,8 @@ export function TimBoard({
       {rows.length === 0 ? (
         <p className="rounded-xl border-2 border-dashed border-slate-300 p-10 text-center text-slate-400">{label} の打刻はまだありません</p>
       ) : (
-        // 盤面全体を1本の横スクロールに・min-w-full で常に画面幅いっぱい・名前列は左固定
-        <div className="overflow-x-auto rounded-2xl border-2 border-slate-900">
+        // 盤面全体を1本の横スクロールに・min-w-full で常に画面幅いっぱい・名前列は左固定・最新(右端)を自動表示
+        <div ref={boardRef} className="overflow-x-auto rounded-2xl border-2 border-slate-900">
           <div className="min-w-full" style={{ width: "max-content" }}>
           {rows.map((r) => {
             const st = STATUS[r.status] ?? STATUS.idle!;
