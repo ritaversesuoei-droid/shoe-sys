@@ -118,8 +118,23 @@ export async function getLogiFlowBoard(sb: SB, dateStr: string): Promise<LFBoard
     d.amJobs.sort(bySort);
     d.nextDayJobs.sort(bySort);
   }
+
+  // 車種順（大型→4t→トレ→その他→区分なし）: 車両マスタ vehicles.kind から判定。
+  const { data: vehData } = await sb.from("vehicles").select("vehicle_no, kind");
+  const kindMap = new Map<string, string>();
+  for (const v of vehData ?? []) kindMap.set(String(v.vehicle_no).trim(), (v.kind ?? "").trim());
+  const kindRank = (veh: string | null): number => {
+    const k = (kindMap.get((veh ?? "").trim()) ?? "").replace(/\s/g, "");
+    if (/大型/.test(k)) return 1;
+    if (/4|４|四/.test(k)) return 2;
+    if (/トレ/.test(k)) return 3;
+    return k ? 8 : 9; // 区分あり(該当外)=8 / 区分なし=9
+  };
   const drivers = [...map.values()].sort(
-    (a, b) => (a.code ?? "zzz").localeCompare(b.code ?? "zzz") || a.name.localeCompare(b.name),
+    (a, b) =>
+      kindRank(a.vehicle) - kindRank(b.vehicle) ||
+      (a.code ?? "zzz").localeCompare(b.code ?? "zzz") ||
+      a.name.localeCompare(b.name),
   );
   return { date: dateStr, drivers, totalJobs };
 }

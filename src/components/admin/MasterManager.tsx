@@ -17,6 +17,9 @@ interface Vehicle {
   name: string | null;
   kind: string | null;
   is_active: boolean;
+  registered_on: string | null;
+  inspection_expiry: string | null;
+  note: string | null;
 }
 interface Customer {
   id: string;
@@ -43,7 +46,7 @@ export function MasterManager() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [nd, setNd] = useState({ code: "", name: "", default_vehicle_no: "", affiliation: "" });
-  const [nv, setNv] = useState({ vehicle_no: "", name: "", kind: "" });
+  const [nv, setNv] = useState({ vehicle_no: "", name: "", kind: "", registered_on: "", inspection_expiry: "" });
   const [nc, setNc] = useState({ name: "", yago: "", address: "" });
 
   const load = useCallback(async () => {
@@ -134,14 +137,23 @@ export function MasterManager() {
       {/* 車両 */}
       <section>
         <h2 className="mb-3 text-lg font-semibold">車両マスタ（{vehicles.length}）</h2>
-        <div className="mb-3 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-4">
+        <p className="mb-2 text-xs text-slate-500">全車両を登録できます。区分（車種）・登録日・車検満了日は各行でその場編集（入力欄から離れると保存）。区分は流れ表の並び順（大型→4t→トレ…）に使われます。</p>
+        <div className="mb-3 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-6">
           <input placeholder="車番*" value={nv.vehicle_no} onChange={(e) => setNv({ ...nv, vehicle_no: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
           <input placeholder="通称" value={nv.name} onChange={(e) => setNv({ ...nv, name: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
-          <input placeholder="区分(大型/中型 等)" value={nv.kind} onChange={(e) => setNv({ ...nv, kind: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
+          <input placeholder="区分(大型/4t/トレ 等)" value={nv.kind} onChange={(e) => setNv({ ...nv, kind: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
+          <label className="flex flex-col text-[10px] text-slate-400">登録日<input type="date" value={nv.registered_on} onChange={(e) => setNv({ ...nv, registered_on: e.target.value })} className="rounded-lg border border-slate-300 px-2 py-2 text-sm" /></label>
+          <label className="flex flex-col text-[10px] text-slate-400">車検満了<input type="date" value={nv.inspection_expiry} onChange={(e) => setNv({ ...nv, inspection_expiry: e.target.value })} className="rounded-lg border border-slate-300 px-2 py-2 text-sm" /></label>
           <button
             onClick={() => run(async () => {
-              await api("/api/admin/vehicles", "POST", { vehicle_no: nv.vehicle_no, name: nv.name || undefined, kind: nv.kind || undefined });
-              setNv({ vehicle_no: "", name: "", kind: "" });
+              await api("/api/admin/vehicles", "POST", {
+                vehicle_no: nv.vehicle_no,
+                name: nv.name || undefined,
+                kind: nv.kind || undefined,
+                registered_on: nv.registered_on || undefined,
+                inspection_expiry: nv.inspection_expiry || undefined,
+              });
+              setNv({ vehicle_no: "", name: "", kind: "", registered_on: "", inspection_expiry: "" });
             })}
             className="rounded-xl bg-slate-900 px-4 py-2.5 text-base font-bold text-white"
           >
@@ -150,21 +162,27 @@ export function MasterManager() {
         </div>
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left"><tr><th className="p-2">車番</th><th className="p-2">通称</th><th className="p-2">区分</th><th className="p-2">稼働</th></tr></thead>
+            <thead className="bg-slate-50 text-left"><tr><th className="p-2">車番</th><th className="p-2">通称</th><th className="p-2">区分(車種)</th><th className="p-2">登録日</th><th className="p-2">車検満了</th><th className="p-2">稼働</th></tr></thead>
             <tbody>
-              {vehicles.map((v) => (
-                <tr key={v.id} className={`border-t ${v.is_active ? "" : "opacity-50"}`}>
-                  <td className="p-2">{v.vehicle_no}</td>
-                  <td className="p-2">{v.name ?? "-"}</td>
-                  <td className="p-2">{v.kind ?? "-"}</td>
-                  <td className="p-2">
-                    <button onClick={() => run(() => api(`/api/admin/vehicles/${v.id}`, "PATCH", { is_active: !v.is_active }))}
-                      className={`rounded-full px-2 py-0.5 text-xs ${v.is_active ? "bg-green-100 text-green-700" : "bg-slate-200 text-slate-600"}`}>
-                      {v.is_active ? "稼働" : "停止"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {vehicles.map((v) => {
+                const vp = (field: string, value: string | null) => run(() => api(`/api/admin/vehicles/${v.id}`, "PATCH", { [field]: value || null }));
+                const cell = "w-full rounded border border-slate-300 px-2 py-1 text-sm";
+                return (
+                  <tr key={v.id} className={`border-t align-top ${v.is_active ? "" : "opacity-50"}`}>
+                    <td className="p-2 whitespace-nowrap font-bold">{v.vehicle_no}</td>
+                    <td className="p-2"><input defaultValue={v.name ?? ""} placeholder="通称" onBlur={(e) => e.target.value !== (v.name ?? "") && vp("name", e.target.value)} className={`${cell} min-w-[6rem]`} /></td>
+                    <td className="p-2"><input defaultValue={v.kind ?? ""} placeholder="大型/4t/トレ" onBlur={(e) => e.target.value !== (v.kind ?? "") && vp("kind", e.target.value)} className={`${cell} w-24`} /></td>
+                    <td className="p-2"><input type="date" defaultValue={v.registered_on ?? ""} onBlur={(e) => e.target.value !== (v.registered_on ?? "") && vp("registered_on", e.target.value)} className={`${cell} w-36`} /></td>
+                    <td className="p-2"><input type="date" defaultValue={v.inspection_expiry ?? ""} onBlur={(e) => e.target.value !== (v.inspection_expiry ?? "") && vp("inspection_expiry", e.target.value)} className={`${cell} w-36`} /></td>
+                    <td className="p-2">
+                      <button onClick={() => run(() => api(`/api/admin/vehicles/${v.id}`, "PATCH", { is_active: !v.is_active }))}
+                        className={`rounded-full px-2 py-0.5 text-xs ${v.is_active ? "bg-green-100 text-green-700" : "bg-slate-200 text-slate-600"}`}>
+                        {v.is_active ? "稼働" : "停止"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -25,7 +25,14 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("vehicles")
-      .insert({ vehicle_no: body.vehicle_no, name: body.name ?? null, kind: body.kind ?? null })
+      .insert({
+        vehicle_no: body.vehicle_no,
+        name: body.name ?? null,
+        kind: body.kind ?? null,
+        registered_on: body.registered_on ?? null,
+        inspection_expiry: body.inspection_expiry ?? null,
+        note: body.note ?? null,
+      })
       .select("*")
       .single();
     if (error) {
