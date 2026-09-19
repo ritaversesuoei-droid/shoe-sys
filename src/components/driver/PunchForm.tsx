@@ -22,7 +22,9 @@ const CONFIG: Record<EventType, { label: string; items: "load" | "unload" | null
   arrival: { label: "到着報告", items: null, alcohol: false },
   loading: { label: "積込完了", items: "load", alcohol: false },
   unloading: { label: "荷卸完了", items: "unload", alcohol: false },
-  long_rest: { label: "長距離休憩", items: null, alcohol: true },
+  // 長距離休憩＝泊まりの休息（勤務を一旦終了）。アルコールチェックは再出発(leg_departure)で実施するため、
+  //   ここでは確認のみ（写真不要）。現場要望 2026-09-19。
+  long_rest: { label: "長距離休憩", items: null, alcohol: false },
   clock_out: { label: "退勤報告", items: null, alcohol: false },
 };
 
@@ -31,6 +33,11 @@ const CONFIRM_META: Partial<Record<EventType, { short: string; icon: string; msg
   departure: { short: "出勤", icon: "☀️", msg: "管理者に「出勤」を報告します" },
   clock_out: { short: "退勤", icon: "🌙", msg: "管理者に「退勤」を報告します" },
   arrival: { short: "到着", icon: "📍", msg: "現在地とともに「到着」を報告します" },
+  long_rest: {
+    short: "長距離休憩",
+    icon: "🌙",
+    msg: "泊まりの休息に入ります（勤務を一旦終了）。次の運転前の「長距離再出発」でアルコールチェックが必要です。",
+  },
 };
 
 // 写真は複数枚送るケースが多いので上限を広めに
