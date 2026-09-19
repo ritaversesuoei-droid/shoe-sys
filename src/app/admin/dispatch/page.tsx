@@ -10,6 +10,8 @@ import { MirrorButton } from "@/components/admin/MirrorButton";
 import { WritebackButton } from "@/components/admin/WritebackButton";
 import { PrintButton } from "@/components/admin/PrintButton";
 import { DispatchTable } from "@/components/admin/DispatchTable";
+import { AttendanceInstructionPanel } from "@/components/admin/AttendanceInstructionPanel";
+import { getInstructionsForDate } from "@/lib/operations/attendance-instruction";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +52,7 @@ export default async function DispatchPage({
   const selectPlans = (d: string) =>
     supabase
       .from("dispatch_plans")
-      .select("id, plan_date, arrival_date, driver_name_raw, vehicle_no, shipper, origin_spot, delivery_spot, arrival_time, is_subcontract, sort_no, drivers(name)")
+      .select("id, plan_date, arrival_date, driver_id, driver_name_raw, vehicle_no, shipper, origin_spot, delivery_spot, arrival_time, is_subcontract, sort_no, drivers(name)")
       .eq("plan_date", d)
       .order("is_subcontract", { ascending: true })
       .order("sort_no", { ascending: true, nullsFirst: false })
@@ -72,6 +74,17 @@ export default async function DispatchPage({
   const rows = driver ? allRows.filter((r) => nameOf(r) === driver) : allRows;
   const own = rows.filter((r) => !r.is_subcontract).length;
   const sub = rows.length - own;
+
+  // 出勤指示時間パネル用: 当日に配車のある登録ドライバー（driver_id あり）を重複排除
+  const dayDrivers = (() => {
+    const m = new Map<string, string>();
+    for (const r of allRows) {
+      if (!r.driver_id) continue;
+      if (!m.has(r.driver_id)) m.set(r.driver_id, (r.drivers as { name: string } | null)?.name ?? r.driver_name_raw ?? "（担当者）");
+    }
+    return [...m.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  })();
+  const instructions = await getInstructionsForDate(supabase, day);
 
   const shift = (n: number): string => {
     const d = new Date(`${day}T00:00:00Z`);
@@ -136,6 +149,8 @@ export default async function DispatchPage({
           <span className="ml-2 text-xs text-slate-400">データ範囲: {earliest.plan_date} 〜 {latest.plan_date}</span>
         )}
       </p>
+
+      <AttendanceInstructionPanel date={day} drivers={dayDrivers} initial={instructions} />
 
       <DispatchTable
         date={day}
