@@ -29,12 +29,17 @@ create index if not exists fuel_logs_driver_idx on public.fuel_logs (driver_id);
 alter table public.fuel_logs enable row level security;
 
 -- ドライバーは自分の給油記録を作成・参照。管理者は全件。
+-- （SQL Editor での手動実行・再実行でも失敗しないよう drop if exists で冪等化）
+drop policy if exists fuel_logs_select on public.fuel_logs;
 create policy fuel_logs_select on public.fuel_logs
   for select using (driver_id = public.current_driver_id() or public.is_admin());
+drop policy if exists fuel_logs_insert on public.fuel_logs;
 create policy fuel_logs_insert on public.fuel_logs
   for insert with check (driver_id = public.current_driver_id() or public.is_admin());
+drop policy if exists fuel_logs_admin_update on public.fuel_logs;
 create policy fuel_logs_admin_update on public.fuel_logs
   for update using (public.is_admin()) with check (public.is_admin());
+drop policy if exists fuel_logs_admin_delete on public.fuel_logs;
 create policy fuel_logs_admin_delete on public.fuel_logs
   for delete using (public.is_admin());
 
