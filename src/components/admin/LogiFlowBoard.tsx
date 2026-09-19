@@ -206,7 +206,7 @@ export function LogiFlowBoard({
             {editing ? "✅ 編集を終了" : "✏️ 編集"}
           </button>
           <Link href="/admin" className={`text-sm ${confirmed ? "text-white underline" : "text-blue-600"}`}>← 管理</Link>
-          <button onClick={() => window.print()} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white">🖨️ A4印刷</button>
+          <button onClick={() => window.open(`/api/admin/logiflow/${date}/pdf`, "_blank")} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white">🖨️ PDF出力・印刷</button>
         </div>
       </div>
       {othersEditing && (

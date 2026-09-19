@@ -43,7 +43,13 @@ async function launchBrowser(): Promise<Browser> {
   });
 }
 
-export async function htmlToPdf(html: string): Promise<Uint8Array> {
+export interface PdfOptions {
+  format?: "A4"; // 名前付きフォーマット（A4のみ・B系は未対応）。未指定は既定の寸法指定(B5横)。
+  landscape?: boolean;
+  margin?: { top: string; bottom: string; left: string; right: string };
+}
+
+export async function htmlToPdf(html: string, opts: PdfOptions = {}): Promise<Uint8Array> {
   let browser: Browser;
   try {
     browser = await launchBrowser();
@@ -59,13 +65,20 @@ export async function htmlToPdf(html: string): Promise<Uint8Array> {
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
-    // puppeteer は B 系の名前付きフォーマット未対応のため、JIS B5 横を寸法指定（257×182mm）。
-    const pdf = await page.pdf({
-      width: "257mm",
-      height: "182mm",
-      printBackground: true,
-      margin: { top: "8mm", bottom: "8mm", left: "8mm", right: "8mm" },
-    });
+    const pdf = opts.format
+      ? await page.pdf({
+          format: opts.format,
+          landscape: opts.landscape ?? false,
+          printBackground: true,
+          margin: opts.margin ?? { top: "6mm", bottom: "6mm", left: "6mm", right: "6mm" },
+        })
+      : // 既定: puppeteer は B 系の名前付きフォーマット未対応のため JIS B5 横を寸法指定（257×182mm）。
+        await page.pdf({
+          width: "257mm",
+          height: "182mm",
+          printBackground: true,
+          margin: opts.margin ?? { top: "8mm", bottom: "8mm", left: "8mm", right: "8mm" },
+        });
     return pdf;
   } finally {
     await browser.close();
