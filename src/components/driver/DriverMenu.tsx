@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 
 /**
  * ドライバーメニュー（現行GAS index画面の忠実再現）。
- *   - 2カラムのボタン（表示数が多いため・現場要望 2026-09-19）。カード枠・実機の配色/絵文字/文言
+ *   - 「出勤報告|自分の配車」「退勤報告|日報作成」の2行のみ2カラム、他は全幅（現場要望 2026-09-19）。カード枠・実機の配色/絵文字/文言
  *   - 出勤報告→通常出勤へ直行（長距離再出発は休憩ダイアログへ移設・現場要望 2026-09-19）。
  *   - 休憩は独立した大きなボタン→ダイアログで選択（現場要望 2026-09-19）。
  *       ・勤務中の休憩: 通常休憩（30分目安・押すと即カウント開始）／分割休息（原則3時間・未満終了はアラート＋同意）
@@ -73,8 +73,8 @@ function renderDetail(e: Ev) {
   return null;
 }
 
-// 実機の配色（スクショ準拠）。2カラム表示（現場要望 2026-09-19）。並び順＝行ごとに左右のペア:
-//   出勤報告|自分の配車 / 到着報告|積込完了 / 荷卸完了|休憩 / 退勤報告|日報作成
+// 実機の配色（スクショ準拠）。2カラムにするのは「出勤報告|自分の配車」「退勤報告|日報作成」の2行だけ。
+//   それ以外（到着/積込/荷卸/休憩）は全幅（現場要望 2026-09-19）。
 const MENU: {
   key: string;
   label: string;
@@ -185,8 +185,19 @@ export function DriverMenu({ name }: { name: string }) {
 
   const go = (href: string) => router.push(href);
   const btn = "w-full rounded-2xl py-5 text-center text-xl font-bold text-white shadow-md active:translate-y-[1px]";
-  // 2カラムのボタン（全て同じ高さ py-5。文字はやや小さめ＋leading-tightで半幅に収める）
+  // 2カラム（半幅）用は文字をやや小さめ＋leading-tight。高さ(py-5)は全幅と同じ。
   const gridBtn = "w-full rounded-2xl py-5 text-center text-lg font-bold leading-tight text-white shadow-md active:translate-y-[1px]";
+  const item = (k: string) => MENU.find((m) => m.key === k)!;
+  const renderBtn = (m: (typeof MENU)[number], cls: string) => (
+    <button
+      key={m.key}
+      onClick={() => (m.dialog ? openDialog(m.dialog) : go(m.href!))}
+      className={cls}
+      style={{ backgroundColor: m.bg }}
+    >
+      {m.label}
+    </button>
+  );
 
   return (
     <main className="min-h-dvh bg-slate-100 p-3">
@@ -230,18 +241,23 @@ export function DriverMenu({ name }: { name: string }) {
           </div>
         )}
 
-        {/* 報告ボタン群（2カラム。全て同じ高さ） */}
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          {MENU.map((m) => (
-            <button
-              key={m.key}
-              onClick={() => (m.dialog ? openDialog(m.dialog) : go(m.href!))}
-              className={gridBtn}
-              style={{ backgroundColor: m.bg }}
-            >
-              {m.label}
-            </button>
-          ))}
+        {/* 報告ボタン群。2カラムにするのは「出勤報告|自分の配車」「退勤報告|日報作成」だけ。他は全幅。 */}
+        <div className="mt-4 flex flex-col gap-3">
+          {/* 出勤報告 | 自分の配車（2カラム） */}
+          <div className="grid grid-cols-2 gap-3">
+            {renderBtn(item("departure"), gridBtn)}
+            {renderBtn(item("dispatch"), gridBtn)}
+          </div>
+          {/* 中段は全幅 */}
+          {renderBtn(item("arrival"), btn)}
+          {renderBtn(item("loading"), btn)}
+          {renderBtn(item("unloading"), btn)}
+          {renderBtn(item("rest"), btn)}
+          {/* 退勤報告 | 日報作成（2カラム） */}
+          <div className="grid grid-cols-2 gap-3">
+            {renderBtn(item("clock_out"), gridBtn)}
+            {renderBtn(item("report"), gridBtn)}
+          </div>
         </div>
       </div>
 
