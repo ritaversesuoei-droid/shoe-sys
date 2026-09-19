@@ -482,6 +482,20 @@ function AttendanceModal({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  // 各時刻入力への参照（Enterで次の人へフォーカス移動する）
+  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  /** 入力欄で Enter → 次の人の時刻欄へフォーカス（最後なら確定してフォーカスを外す）。 */
+  function focusNext(i: number) {
+    for (let j = i + 1; j < drivers.length; j++) {
+      const el = inputRefs.current[j];
+      if (el) {
+        el.focus();
+        return;
+      }
+    }
+    inputRefs.current[i]?.blur();
+  }
 
   const setCount = Object.values(times).filter(Boolean).length;
   const allSelected = drivers.length > 0 && selected.size === drivers.length;
@@ -565,7 +579,8 @@ function AttendanceModal({
         <div className="overflow-y-auto px-4 py-3">
           <p className="mb-3 text-xs text-slate-500">
             指示時間より早い通常出勤は、ドライバーの打刻画面で<strong>アラート＋同意チェック</strong>が必要になります（同意しないと出勤ボタンは押せません）。
-            対象は<strong>ドライバーマスタ全員</strong>です。<strong>一人ずつ手入力</strong>（空欄で解除）でき、下の一括入力も使えます。
+            対象は<strong>ドライバーマスタ全員</strong>です。<strong>一人ずつ手入力</strong>（空欄で解除）でき、
+            時刻を入れて <strong>Enter</strong> を押すと<strong>次の人へ移動</strong>します。下の一括入力も使えます。
             入力しただけでは保存されません。<strong>最後に「反映（保存）」</strong>を押してください。
           </p>
 
@@ -627,7 +642,16 @@ function AttendanceModal({
                   <input
                     type="time"
                     value={times[d.id] ?? ""}
+                    ref={(el) => {
+                      inputRefs.current[i] = el;
+                    }}
                     onChange={(e) => setTimes((prev) => ({ ...prev, [d.id]: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        focusNext(i);
+                      }
+                    }}
                     className="shrink-0 rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline focus:outline-1 focus:outline-indigo-500"
                   />
                 </div>
