@@ -859,27 +859,36 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          inspection_expiry: string | null
           is_active: boolean
           kind: string | null
           name: string | null
+          note: string | null
+          registered_on: string | null
           updated_at: string
           vehicle_no: string
         }
         Insert: {
           created_at?: string
           id?: string
+          inspection_expiry?: string | null
           is_active?: boolean
           kind?: string | null
           name?: string | null
+          note?: string | null
+          registered_on?: string | null
           updated_at?: string
           vehicle_no: string
         }
         Update: {
           created_at?: string
           id?: string
+          inspection_expiry?: string | null
           is_active?: boolean
           kind?: string | null
           name?: string | null
+          note?: string | null
+          registered_on?: string | null
           updated_at?: string
           vehicle_no?: string
         }

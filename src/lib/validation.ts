@@ -127,13 +127,20 @@ export const driverUpdateSchema = z.object({
 });
 
 /** マスタ管理（管理者）: 車両作成/更新 */
+const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日付は yyyy-MM-dd").nullable().optional();
 export const vehicleCreateSchema = z.object({
   vehicle_no: z.string().min(1, "車番は必須"),
   name: z.string().optional(),
   kind: z.string().optional(),
+  registered_on: dateStr,
+  inspection_expiry: dateStr,
+  note: z.string().nullable().optional(),
 });
 export const vehicleUpdateSchema = z.object({
   name: z.string().nullable().optional(),
   kind: z.string().nullable().optional(),
   is_active: z.boolean().optional(),
+  registered_on: dateStr,
+  inspection_expiry: dateStr,
+  note: z.string().nullable().optional(),
 });
