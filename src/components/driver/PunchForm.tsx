@@ -412,7 +412,7 @@ export function PunchForm({
         <div className="flex flex-col gap-5 pt-2">
           <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 text-center">
             <p className="text-lg font-bold text-amber-800">📷 アルコールチェック</p>
-            <p className="mt-1 text-sm text-amber-700">撮影、またはライブラリーから選択して送信してください</p>
+            <p className="mt-1 text-sm text-amber-700">その場でカメラ撮影して送信してください（ライブラリーからの選択はできません）</p>
           </div>
           {type === "leg_departure" && (
             <label className="flex items-start gap-3 rounded-2xl border-2 border-violet-300 bg-violet-50 p-4 text-left active:scale-[0.99]">
@@ -447,23 +447,15 @@ export function PunchForm({
               ))}
             </div>
           )}
+          {/* アルコールチェックはその場撮影のみ（ライブラリー選択は不可＝過去写真の使い回し防止 / 現場要望 2026-09-19） */}
           {photos.length < MAX_PHOTOS && (
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => cameraInputRef.current?.click()}
-                className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-amber-400 bg-amber-50 py-8 text-base font-bold text-amber-700 active:scale-[0.99]"
-              >
-                <span className="text-4xl">📷</span>
-                カメラで撮影
-              </button>
-              <button
-                onClick={() => libraryInputRef.current?.click()}
-                className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-amber-400 bg-amber-50 py-8 text-base font-bold text-amber-700 active:scale-[0.99]"
-              >
-                <span className="text-4xl">🖼</span>
-                ライブラリーから選択
-              </button>
-            </div>
+            <button
+              onClick={() => cameraInputRef.current?.click()}
+              className="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-amber-400 bg-amber-50 py-8 text-base font-bold text-amber-700 active:scale-[0.99]"
+            >
+              <span className="text-4xl">📷</span>
+              カメラで撮影
+            </button>
           )}
           {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
           <button
