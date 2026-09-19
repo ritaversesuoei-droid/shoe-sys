@@ -96,10 +96,19 @@ export function isOutOfNormal(fuelKmL: number | null, min: number | null, max: n
   return false;
 }
 
-// テーブル未作成（マイグレーション未適用）を吸収するためのガード。
+// テーブル/列 未作成（マイグレーション未適用）を吸収するためのガード。
+//   - 42P01: relation does not exist（直接SQL） / 42703: column does not exist
+//   - PGRST205: PostgRESTのスキーマキャッシュにテーブルが無い（Supabase REST経由の主エラー）
 function isMissingTable(err: unknown): boolean {
   const e = err as { code?: string; message?: string } | null;
-  return e?.code === "42P01" || /relation .*fuel_logs.* does not exist/i.test(e?.message ?? "");
+  const code = e?.code ?? "";
+  const msg = e?.message ?? "";
+  return (
+    code === "42P01" ||
+    code === "42703" ||
+    code === "PGRST205" ||
+    /could not find the table|does not exist|schema cache/i.test(msg)
+  );
 }
 
 export interface FuelInput {
