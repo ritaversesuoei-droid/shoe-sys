@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
  */
 const LABEL: Record<string, string> = {
   departure: "出勤", leg_departure: "長距離再出発", arrival: "到着", loading: "積込",
-  unloading: "荷卸", long_rest: "長距離休憩", clock_out: "退勤", rest_start: "休憩開始", rest_end: "休憩終了",
+  unloading: "荷卸", long_rest: "長距離休息", clock_out: "退勤", rest_start: "休憩開始", rest_end: "休憩終了",
 };
 
 function hhmm(iso: string | null): string {

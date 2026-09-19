@@ -15,7 +15,7 @@ const TYPES: { v: string; l: string }[] = [
   { v: "loading", l: "積込" },
   { v: "unloading", l: "荷卸" },
   { v: "leg_departure", l: "長距離再出発" },
-  { v: "long_rest", l: "長距離休憩" },
+  { v: "long_rest", l: "長距離休息" },
   { v: "clock_out", l: "退勤" },
 ];
 
