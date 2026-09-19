@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -178,17 +178,9 @@ function mapUrlForEvent(e: TimEvent): string | null {
 
 /** ドライバー1行ぶんの打刻ストリップ。最新が右端＝初期表示で右端までスクロールし、左へ遡れる。 */
 function EventsStrip({ events, name, onOpen }: { events: TimEvent[]; name: string; onOpen: (d: { ev: TimEvent; name: string }) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const prevLen = useRef(0);
-  useEffect(() => {
-    const el = ref.current;
-    // 初回、またはこの行に新しい打刻が増えた時だけ右端へ寄せる（他ドライバーの更新で手動スクロールを破棄しない）。
-    if (el && events.length > prevLen.current) el.scrollLeft = el.scrollWidth;
-    prevLen.current = events.length;
-  }, [events]);
+  // 盤面全体を一括で横スクロールするため、行ごとの個別スクロールは廃止（親コンテナがまとめて横スクロール）。
   return (
-    <div ref={ref} className="flex-1 overflow-x-auto bg-slate-50 px-2 py-2">
-      <div className="flex flex-nowrap items-stretch gap-1.5">
+    <div className="flex flex-1 flex-nowrap items-stretch gap-1.5 bg-slate-50 px-2 py-2">
         {events.length === 0 ? (
           <span className="px-2 py-3 text-xs text-slate-400">打刻なし</span>
         ) : (
@@ -218,7 +210,6 @@ function EventsStrip({ events, name, onOpen }: { events: TimEvent[]; name: strin
             );
           })
         )}
-      </div>
     </div>
   );
 }
@@ -347,13 +338,15 @@ export function TimBoard({
       {rows.length === 0 ? (
         <p className="rounded-xl border-2 border-dashed border-slate-300 p-10 text-center text-slate-400">{label} の打刻はまだありません</p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border-2 border-slate-900">
+        // 盤面全体を1本の横スクロールに・min-w-full で常に画面幅いっぱい・名前列は左固定
+        <div className="overflow-x-auto rounded-2xl border-2 border-slate-900">
+          <div className="min-w-full" style={{ width: "max-content" }}>
           {rows.map((r) => {
             const st = STATUS[r.status] ?? STATUS.idle!;
             return (
-              <div key={r.driverId} className="flex border-b-2 border-slate-900 last:border-b-0">
-                {/* ドライバー（経路リンクは廃止） */}
-                <div className={`w-32 shrink-0 border-r-2 border-slate-900 px-2 py-2 align-top ${st.cell}`}>
+              <div key={r.driverId} className="flex border-b-2 border-slate-900 last:border-b-0" style={{ minWidth: "100%" }}>
+                {/* ドライバー（左に固定表示） */}
+                <div className={`sticky left-0 z-10 w-32 shrink-0 border-r-2 border-slate-900 px-2 py-2 align-top ${st.cell}`}>
                   <div className="flex items-center gap-1 font-black leading-tight text-slate-900">
                     <span>{r.name}</span>
                     {r.lineUserId && <span title="LINE連携済み" className="text-sm leading-none">💬</span>}
@@ -368,6 +361,7 @@ export function TimBoard({
               </div>
             );
           })}
+          </div>
         </div>
       )}
       </div>

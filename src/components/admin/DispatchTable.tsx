@@ -10,6 +10,7 @@ export interface DispatchRow {
   id: string;
   driver_name_raw: string | null;
   driver_name: string | null; // drivers 紐付け名（あれば優先表示）
+  affiliation: string | null; // 所属（社名）。昭栄運輸 / 協力店社名 など
   vehicle_no: string | null;
   shipper: string | null;
   origin_spot: string | null;
@@ -17,6 +18,13 @@ export interface DispatchRow {
   arrival_date: string | null;
   arrival_time: string | null;
   is_subcontract: boolean;
+}
+
+/** 所属の表示は社名で（自社/協力ではなく）。社名があればそれ、無ければ 昭栄運輸 / 協力。 */
+function companyLabel(r: DispatchRow): string {
+  const aff = (r.affiliation ?? "").trim();
+  if (aff && aff !== "自社" && aff !== "協力") return aff;
+  return r.is_subcontract ? "協力" : "昭栄運輸";
 }
 
 type TextKey = "shipper" | "origin_spot" | "delivery_spot" | "arrival_time" | "vehicle_no";
@@ -122,11 +130,11 @@ export function DispatchTable({ date, rows, confirmed, now }: { date: string; ro
     `inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-bold ${r.is_subcontract ? "bg-orange-100 text-orange-700" : "bg-sky-100 text-sky-700"}`;
   const fldAffil = (r: DispatchRow) =>
     editing ? (
-      <button onClick={() => patch(r.id, "is_subcontract", !r.is_subcontract)} className={badgeCls(r)} title="クリックで自社／子車を切替">
-        {r.is_subcontract ? "🚚 子車" : "🏢 自社"}
+      <button onClick={() => patch(r.id, "is_subcontract", !r.is_subcontract)} className={badgeCls(r)} title="クリックで自社／協力を切替">
+        {r.is_subcontract ? "🚚 " : "🏢 "}{companyLabel(r)}
       </button>
     ) : (
-      <span className={badgeCls(r)}>{r.is_subcontract ? "🚚 子車" : "🏢 自社"}</span>
+      <span className={badgeCls(r)}>{r.is_subcontract ? "🚚 " : "🏢 "}{companyLabel(r)}</span>
     );
 
   return (
