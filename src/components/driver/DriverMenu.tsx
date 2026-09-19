@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 
 /**
  * ドライバーメニュー（現行GAS index画面の忠実再現）。
- *   - フルワイド縦積みボタン・カード枠・実機の配色/絵文字/文言
+ *   - 2カラムのボタン（表示数が多いため・現場要望 2026-09-19）。カード枠・実機の配色/絵文字/文言
  *   - 出勤報告→通常出勤へ直行（長距離再出発は休憩ダイアログへ移設・現場要望 2026-09-19）。
  *   - 休憩は独立した大きなボタン→ダイアログで選択（現場要望 2026-09-19）。
  *       ・勤務中の休憩: 通常休憩（30分目安・押すと即カウント開始）／分割休息（原則3時間・未満終了はアラート＋同意）
@@ -73,22 +73,23 @@ function renderDetail(e: Ev) {
   return null;
 }
 
-// 実機の配色（スクショ準拠）。休憩は big=独立した大きなボタン（現場要望 2026-09-19）。
+// 実機の配色（スクショ準拠）。2カラム表示（現場要望 2026-09-19）。並び順＝行ごとに左右のペア:
+//   出勤報告|自分の配車 / 到着報告|積込完了 / 荷卸完了|休憩 / 退勤報告|日報作成
 const MENU: {
   key: string;
   label: string;
   bg: string;
   dialog?: "arrival" | "rest";
   href?: string;
-  big?: boolean;
 }[] = [
   { key: "departure", label: "☀️ 出勤報告", bg: "#4285f4", href: "/driver/punch/departure" },
+  { key: "dispatch", label: "🚚 自分の配車", bg: "#0ea5e9", href: "/driver/dispatch" },
   { key: "arrival", label: "📍 到着報告", bg: "#4caf50", dialog: "arrival" },
-  { key: "loading", label: "📦 積込完了(詳細)", bg: "#3d9aa5", href: "/driver/punch/loading" },
-  { key: "unloading", label: "🏭 荷卸完了(詳細)", bg: "#6320ee", href: "/driver/punch/unloading" },
-  { key: "rest", label: "☕ 休憩", bg: "#2196f3", dialog: "rest", big: true },
+  { key: "loading", label: "📦 積込完了", bg: "#3d9aa5", href: "/driver/punch/loading" },
+  { key: "unloading", label: "🏭 荷卸完了", bg: "#6320ee", href: "/driver/punch/unloading" },
+  { key: "rest", label: "☕ 休憩", bg: "#2196f3", dialog: "rest" },
   { key: "clock_out", label: "🌙 退勤報告", bg: "#d9534f", href: "/driver/punch/clock_out" },
-  { key: "report", label: "📝 日報作成（乗務記録）", bg: "#455a64", href: "/driver/report" },
+  { key: "report", label: "📝 日報作成", bg: "#455a64", href: "/driver/report" },
 ];
 
 export function DriverMenu({ name }: { name: string }) {
@@ -184,8 +185,8 @@ export function DriverMenu({ name }: { name: string }) {
 
   const go = (href: string) => router.push(href);
   const btn = "w-full rounded-2xl py-5 text-center text-xl font-bold text-white shadow-md active:translate-y-[1px]";
-  // 休憩は一段大きく・リングで強調（現場要望「一つ大きく作成」）
-  const bigBtn = "w-full rounded-2xl py-8 text-center text-2xl font-black text-white shadow-lg ring-4 ring-sky-200 active:translate-y-[1px]";
+  // 2カラムのボタン（全て同じ高さ py-5。文字はやや小さめ＋leading-tightで半幅に収める）
+  const gridBtn = "w-full rounded-2xl py-5 text-center text-lg font-bold leading-tight text-white shadow-md active:translate-y-[1px]";
 
   return (
     <main className="min-h-dvh bg-slate-100 p-3">
@@ -201,11 +202,6 @@ export function DriverMenu({ name }: { name: string }) {
             名前変更
           </button>
         </div>
-
-        {/* 自分の配車（本人ぶんのみ・閲覧専用） */}
-        <button onClick={() => go("/driver/dispatch")} className={`${btn} mb-3 bg-[#0ea5e9]`}>
-          🚚 自分の配車を見る
-        </button>
 
         {/* 今日の履歴（トグル） */}
         <button onClick={toggleHist} className={`${btn} bg-[#6c757d]`}>
@@ -234,13 +230,13 @@ export function DriverMenu({ name }: { name: string }) {
           </div>
         )}
 
-        {/* 報告ボタン群（休憩は big=独立した大きなボタン） */}
-        <div className="mt-4 flex flex-col gap-3">
+        {/* 報告ボタン群（2カラム。全て同じ高さ） */}
+        <div className="mt-4 grid grid-cols-2 gap-3">
           {MENU.map((m) => (
             <button
               key={m.key}
               onClick={() => (m.dialog ? openDialog(m.dialog) : go(m.href!))}
-              className={m.big ? bigBtn : btn}
+              className={gridBtn}
               style={{ backgroundColor: m.bg }}
             >
               {m.label}
