@@ -95,6 +95,48 @@ export async function setInstructionTime(
   if (error) throw error;
 }
 
+/**
+ * 複数ドライバーへ同一の出勤指示時間を一括設定（hhmm=null/空 で一括解除）。
+ *   1回の読み書きでまとめて反映（PATCHをN回叩くより速い）。古い日付は剪定。
+ */
+export async function setInstructionTimesBulk(
+  sb: SB,
+  workDate: string,
+  driverIds: string[],
+  hhmm: string | null,
+): Promise<{ count: number; time: string | null }> {
+  const map = await readMap(sb);
+  const norm = normalizeHhmm(hhmm);
+  let count = 0;
+  for (const driverId of driverIds) {
+    if (!driverId) continue;
+    const key = instructionKey(driverId, workDate);
+    if (norm) map[key] = norm;
+    else delete map[key];
+    count++;
+  }
+
+  // 剪定: 古い日付を落としてマップ肥大化を防ぐ
+  const cutoff = toWorkDate(new Date(Date.now() - PRUNE_BEFORE_DAYS * 86_400_000));
+  for (const k of Object.keys(map)) {
+    const d = k.split("|")[1];
+    if (d && d < cutoff) delete map[k];
+  }
+
+  const { error } = await sb
+    .from("app_settings")
+    .upsert(
+      {
+        key: KEY_INSTRUCTIONS,
+        value: map as unknown as Json,
+        description: "出勤指示時間（driverId|yyyy-mm-dd → HH:MM, JST）",
+      },
+      { onConflict: "key" },
+    );
+  if (error) throw error;
+  return { count, time: norm };
+}
+
 /** 早すぎ判定の猶予（分）。app_settings('attendance').early_departure_grace_min（既定0）。 */
 export async function getEarlyGraceMin(sb: SB): Promise<number> {
   const { data } = await sb.from("app_settings").select("value").eq("key", KEY_ATTENDANCE).maybeSingle();

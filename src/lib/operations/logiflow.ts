@@ -18,6 +18,7 @@ export interface LFJob {
 }
 export interface LFDriver {
   key: string; // DOM用（空白除去）
+  id: string | null; // ドライバーマスタ id(uuid)。未登録(協力/名前のみ)は null。出勤指示時間の対象。
   name: string;
   code: string | null;
   belong: string; // 自社 / 協力
@@ -75,6 +76,7 @@ export async function getLogiFlowBoard(sb: SB, dateStr: string): Promise<LFBoard
       const belong = aff && aff !== "自社" && aff !== "協力" ? aff : isCoop ? "協力" : "昭栄運輸";
       d = {
         key: name.replace(/\s/g, "") || "x",
+        id: r.driver_id ?? null,
         name,
         code: drv?.code ?? null,
         belong,
@@ -85,7 +87,8 @@ export async function getLogiFlowBoard(sb: SB, dateStr: string): Promise<LFBoard
       };
       map.set(mk, d);
     }
-    // 後続行に driver_id 経由の code があれば補完（先頭が案件追加のcode=null行でも並び順を安定させる）
+    // 後続行に driver_id / code があれば補完（先頭が案件追加=driver_id/code null行でも安定させる）
+    if (!d.id && r.driver_id) d.id = r.driver_id;
     if (d.code == null && drv?.code) d.code = drv.code;
     if (!d.vehicle) d.vehicle = r.vehicle_no ?? drv?.default_vehicle_no ?? null;
 
