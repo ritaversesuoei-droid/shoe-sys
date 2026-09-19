@@ -152,7 +152,20 @@ export function LogiFlowBoard({
   return (
     <main className="min-h-dvh bg-slate-100 p-3">
       {/* @page に size/orientation を固定しない＝印刷ダイアログで縦/横を選べる（横固定の解消） */}
-      <style>{`@media print { nav{display:none!important;} .no-print{display:none!important;} @page{margin:6mm;} main{padding:0!important;background:#fff!important;} }`}</style>
+      <style>{`@media print {
+        nav{display:none!important;} .no-print{display:none!important;}
+        @page{margin:6mm;}
+        main{padding:0!important;background:#fff!important;}
+        /* 印刷は画面のズーム/幅指定をリセットして用紙に自然に収める */
+        .board-zoom{zoom:1!important;width:auto!important;}
+        /* 横がはみ出て切れないよう最小幅を解除し、盤面を用紙幅に収める */
+        .lf-board{overflow:visible!important;}
+        .lf-head,.lf-row{min-width:0!important;}
+        /* 行がページ境界で分断されないように（途中で切れるのを防ぐ） */
+        .lf-row,.lf-head{break-inside:avoid;page-break-inside:avoid;}
+        /* セル内の横スクロールを解除し、案件を折り返して全て印字 */
+        .lf-cell{overflow:visible!important;flex-wrap:wrap!important;}
+      }`}</style>
 
       {/* タイトル帯: 確定でこの帯が赤くなる（配車表と同期） */}
       <div className={`mb-2 flex flex-wrap items-center gap-3 rounded-lg px-3 py-1.5 no-print ${confirmed ? "bg-red-600 text-white" : "bg-white"}`}>
@@ -209,9 +222,9 @@ export function LogiFlowBoard({
       {err && <p className="mb-2 rounded bg-red-50 p-2 text-sm text-red-600 no-print">{err}</p>}
 
       <div className="board-zoom" style={wrapStyle}>
-      <div className="overflow-x-auto rounded-lg border-2 border-black bg-white">
+      <div className="lf-board overflow-x-auto rounded-lg border-2 border-black bg-white">
         {/* ヘッダ */}
-        <div className="grid min-w-[1100px] grid-cols-[130px_minmax(130px,max-content)_minmax(0,1fr)_200px] border-b-2 border-black bg-black text-center text-[10px] font-bold text-white">
+        <div className="lf-head grid min-w-[1100px] grid-cols-[130px_minmax(130px,max-content)_minmax(0,1fr)_200px] border-b-2 border-black bg-black text-center text-[10px] font-bold text-white">
           <div className="border-r border-slate-600 p-2">DRIVER</div>
           <div className="border-r border-slate-600 p-2">AM（前日継続）</div>
           <div className="border-r border-slate-600 p-2">当日フロー（{mdw(date).text}）</div>
@@ -222,7 +235,7 @@ export function LogiFlowBoard({
           <p className="p-10 text-center text-slate-400">{date} の配車はありません</p>
         ) : (
           drivers.map((d) => (
-            <div key={d.key} className="grid min-w-[1100px] grid-cols-[130px_minmax(130px,max-content)_minmax(0,1fr)_200px] border-b-2 border-black">
+            <div key={d.key} className="lf-row grid min-w-[1100px] grid-cols-[130px_minmax(130px,max-content)_minmax(0,1fr)_200px] border-b-2 border-black">
               {/* ドライバー情報 */}
               <div className="flex flex-col items-center justify-center border-r-2 border-black bg-slate-50 p-1 text-center">
                 <span className="text-[8px] text-slate-400">{d.belong}</span>
@@ -273,7 +286,7 @@ function Column({
   const isAm = col === "am";
   return (
     <div
-      className={`flex items-center gap-1 border-r border-black p-1 ${isAm ? "" : "overflow-x-auto"} ${nextBg ? "bg-slate-100" : ""} ${active ? "outline-dashed outline-2 outline-blue-400" : ""}`}
+      className={`lf-cell flex items-center gap-1 border-r border-black p-1 ${isAm ? "" : "overflow-x-auto"} ${nextBg ? "bg-slate-100" : ""} ${active ? "outline-dashed outline-2 outline-blue-400" : ""}`}
       onDragOver={(e) => { if (active) e.preventDefault(); }}
       onDrop={(e) => { e.preventDefault(); onDropTo(driver, col, null); }}
     >
