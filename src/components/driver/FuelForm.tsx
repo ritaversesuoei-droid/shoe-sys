@@ -274,6 +274,15 @@ export function FuelForm({
         {submitting ? "SENDING..." : "PUNCH DATA / 送信"}
       </button>
 
+      {/* メニューへ戻る */}
+      <Link
+        href="/driver"
+        className="btn"
+        style={{ marginTop: 10, display: "block", textAlign: "center", textDecoration: "none", background: "#a3aab5" }}
+      >
+        ← メニューへ戻る
+      </Link>
+
       {/* 結果モーダル */}
       {result && (
         <div className="overlay">
