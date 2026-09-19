@@ -9,7 +9,7 @@ const LABEL: Record<string, string> = {
   arrival: "到着",
   loading: "積込",
   unloading: "荷卸",
-  long_rest: "長距離休憩",
+  long_rest: "長距離休息",
   clock_out: "退勤",
   rest_start: "休憩開始",
   rest_end: "休憩終了",

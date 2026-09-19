@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 /**
- * ② 休憩ボタン（S-02系 / 現場要望）。
+ * ② 通常休憩（S-02系 / 現場要望）。
+ *   - 休憩ボタン→この画面に来た時点で自動でカウント開始（rest_start）。別途「開始」ボタンは持たない。
  *   - 休憩開始/終了で位置情報を送信（events: rest_start / rest_end）
  *   - スマホ上に「開始時刻」と「30分ライブタイマー」を表示（何時から休んだか見忘れ防止）
  *   - 状態は localStorage に保持し、画面遷移・再読込・端末スリープをまたいでも復元
@@ -63,6 +64,7 @@ export function RestTimer() {
   const busyRef = useRef(false);
   const startKeyRef = useRef<string | null>(null);
   const endKeyRef = useRef<string | null>(null);
+  const autoStartedRef = useRef(false); // 自動開始は一度だけ（失敗時の無限リトライ防止）
 
   // 復元
   useEffect(() => {
@@ -163,6 +165,22 @@ export function RestTimer() {
     setError(null);
   }, []);
 
+  // このページの目的は休憩開始。到着時に休憩中でなければ自動でカウント開始（現場要望: 押したら即カウント）。
+  //   休憩ボタン(通常休憩)→/driver/rest 遷移だけで開始でき、別の「開始」ボタンは不要にする。
+  useEffect(() => {
+    if (autoStartedRef.current) return;
+    let hasActive = false;
+    try {
+      hasActive = !!localStorage.getItem(STORAGE_KEY);
+    } catch {
+      /* 参照不可は未開始扱い */
+    }
+    if (!hasActive && !done && !busyRef.current) {
+      autoStartedRef.current = true;
+      void startRest();
+    }
+  }, [done, startRest]);
+
   // ---- 休憩終了後のサマリ ----
   if (done) {
     const total = Date.parse(done.endISO) - Date.parse(done.startISO);
@@ -182,7 +200,10 @@ export function RestTimer() {
         </div>
         <div className="mt-6 flex flex-col gap-3">
           <button
-            onClick={() => setDone(null)}
+            onClick={() => {
+              autoStartedRef.current = false; // 再度の自動開始を許可
+              setDone(null);
+            }}
             className="rounded-lg border border-slate-300 px-4 py-3 text-center font-medium"
           >
             もう一度 休憩する
@@ -256,7 +277,7 @@ export function RestTimer() {
     );
   }
 
-  // ---- 休憩開始前 ----
+  // ---- 休憩開始前（通常は自動でカウント開始するため一瞬のみ。失敗時だけ再試行を表示）----
   return (
     <main className="mx-auto max-w-md p-4">
       <header className="mb-4 flex items-center gap-2">
@@ -264,19 +285,20 @@ export function RestTimer() {
         <h1 className="text-xl font-bold">休憩</h1>
       </header>
 
-      <p className="mb-6 text-sm text-slate-500">
-        ボタンを押すと現在地とともに休憩開始を記録します。開始時刻と30分タイマーを表示します。
-      </p>
-
-      {error && <p className="mb-3 rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
-
-      <button
-        onClick={startRest}
-        disabled={busy}
-        className="w-full rounded-2xl bg-blue-600 px-4 py-8 text-2xl font-bold text-white active:scale-[0.99] disabled:opacity-50"
-      >
-        {busy ? "記録中..." : "☕ 休憩を開始する"}
-      </button>
+      {error ? (
+        <>
+          <p className="mb-3 rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>
+          <button
+            onClick={startRest}
+            disabled={busy}
+            className="w-full rounded-2xl bg-blue-600 px-4 py-8 text-2xl font-bold text-white active:scale-[0.99] disabled:opacity-50"
+          >
+            {busy ? "記録中..." : "☕ 休憩を開始する（再試行）"}
+          </button>
+        </>
+      ) : (
+        <p className="mt-10 text-center text-lg font-bold text-slate-500">☕ 休憩のカウントを開始しています…</p>
+      )}
     </main>
   );
 }

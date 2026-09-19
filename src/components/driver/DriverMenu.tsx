@@ -8,8 +8,8 @@ import { createClient } from "@/lib/supabase/client";
  * ドライバーメニュー（現行GAS index画面の忠実再現）。
  *   - フルワイド縦積みボタン・カード枠・実機の配色/絵文字/文言
  *   - 出勤報告→「通常出勤/長距離再出発」の選択ダイアログ（消し込み）
- *   - 休憩は独立した大きなボタン→「通常休憩/長距離休憩」を選択（現場要望 2026-09-19）。
- *       通常休憩=勤務中の休憩タイマー、長距離休憩=泊まりの休息（勤務クローズ・再出発時にアルコールチェック）。
+ *   - 休憩は独立した大きなボタン→「通常休憩/長距離休息」を選択（現場要望 2026-09-19）。
+ *       通常休憩=勤務中の休憩タイマー（押すと即カウント開始）、長距離休息=泊まりの休息（勤務クローズ・再出発時にアルコールチェック）。
  *   - 今日の履歴はインライン展開（時刻＋内容）
  */
 
@@ -36,7 +36,7 @@ const HIST_LABEL: Record<string, string> = {
   arrival: "到着報告",
   loading: "積込完了",
   unloading: "荷卸完了",
-  long_rest: "長距離休憩",
+  long_rest: "長距離休息",
   clock_out: "退勤",
   rest_start: "休憩開始",
   rest_end: "休憩終了",
@@ -89,7 +89,7 @@ const MENU: {
   { key: "report", label: "📝 日報作成（乗務記録）", bg: "#455a64", href: "/driver/report" },
 ];
 
-export function DriverMenu({ name, showRest }: { name: string; showRest: boolean }) {
+export function DriverMenu({ name }: { name: string }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<null | "departure" | "arrival" | "rest">(null);
   const [histOpen, setHistOpen] = useState(false);
@@ -247,7 +247,7 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
         </div>
       </div>
 
-      {/* 報告ダイアログ（出勤=通常/長距離再出発、休憩=通常/長距離休憩、到着=その場で直接送信） */}
+      {/* 報告ダイアログ（出勤=通常/長距離再出発、休憩=通常休憩/長距離休息、到着=その場で直接送信） */}
       {dialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeDialog}>
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -281,22 +281,20 @@ export function DriverMenu({ name, showRest }: { name: string; showRest: boolean
               <>
                 <p className="mt-1 text-slate-500">休憩の種類を選んでください</p>
                 <div className="mt-5 flex flex-col gap-2 text-left">
-                  {/* 通常休憩=勤務中の休憩タイマー。自社は手入力運用のため設定(showRest)で表示切替 */}
-                  {showRest && (
-                    <button
-                      onClick={() => go("/driver/rest")}
-                      className="rounded-xl bg-blue-500 px-4 py-3 active:translate-y-[1px]"
-                    >
-                      <span className="block text-lg font-bold text-white">☕ 通常休憩</span>
-                      <span className="mt-0.5 block text-xs text-blue-50">勤務中の休憩（30分タイマー）。勤務は続きます。</span>
-                    </button>
-                  )}
-                  {/* 長距離休憩=泊まりの休息。勤務を一旦終了し、再出発時にアルコールチェック（写真）が必要 */}
+                  {/* 通常休憩=勤務中の休憩タイマー。押すと即カウント開始（/driver/rest で自動開始） */}
+                  <button
+                    onClick={() => go("/driver/rest")}
+                    className="rounded-xl bg-blue-500 px-4 py-3 active:translate-y-[1px]"
+                  >
+                    <span className="block text-lg font-bold text-white">☕ 通常休憩</span>
+                    <span className="mt-0.5 block text-xs text-blue-50">押すとその場でカウント開始（30分タイマー）。勤務は続きます。</span>
+                  </button>
+                  {/* 長距離休息=泊まりの休息。勤務を一旦終了し、再出発時にアルコールチェック（写真）が必要 */}
                   <button
                     onClick={() => go("/driver/punch/long_rest")}
                     className="rounded-xl bg-amber-500 px-4 py-3 active:translate-y-[1px]"
                   >
-                    <span className="block text-lg font-bold text-white">🌙 長距離休憩（泊まり）</span>
+                    <span className="block text-lg font-bold text-white">🌙 長距離休息（泊まり）</span>
                     <span className="mt-0.5 block text-xs text-amber-50">
                       泊まりの休息に入ります（勤務を一旦終了）。次の運転前＝「長距離再出発」でアルコールチェックが必要です。
                     </span>

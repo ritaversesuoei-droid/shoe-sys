@@ -14,7 +14,7 @@ const TYPE_META: Record<string, { label: string; short: string; cls: string }> =
   arrival: { label: "到着報告", short: "到着", cls: "border-pink-400 bg-pink-50 text-pink-600" },
   loading: { label: "積込完了", short: "積込", cls: "border-green-500 bg-green-50 text-green-700" },
   unloading: { label: "荷卸完了", short: "荷卸", cls: "border-orange-400 bg-orange-50 text-orange-600" },
-  long_rest: { label: "長距離休憩", short: "休憩", cls: "border-orange-500 bg-orange-500 text-white" },
+  long_rest: { label: "長距離休息", short: "休息", cls: "border-orange-500 bg-orange-500 text-white" },
   clock_out: { label: "退勤", short: "退勤", cls: "border-red-500 bg-red-500 text-white" },
   rest_start: { label: "休憩開始", short: "休入", cls: "border-slate-300 bg-slate-50 text-slate-600" },
   rest_end: { label: "休憩終了", short: "休了", cls: "border-slate-300 bg-slate-50 text-slate-600" },
