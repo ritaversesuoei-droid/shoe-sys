@@ -170,7 +170,8 @@ export default function AttendanceTable({ rows, focus }: { rows: AttendanceRow[]
         </button>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border">
+      {/* カード表示は横スクロール不要（overflow-x-autoを外す）。エクセル表示のみ横スクロール。 */}
+      <div className={view === "excel" ? "overflow-x-auto rounded-xl border" : "rounded-xl border"}>
         {view === "excel" ? (
           <table className="w-full min-w-[1180px] border-collapse text-xs">
             <thead className="text-left">
@@ -418,15 +419,15 @@ function EditableRow({
         </td>
         <td className="p-3 whitespace-nowrap text-slate-500">{hm(row.actualIn) || "—"}<br />{hm(row.actualOut) || "—"}</td>
         <td className="p-3">
-          <input type="time" value={editedIn} onChange={(e) => setEditedIn(e.target.value)} className={`${inputCls} w-28`} />
+          <input type="time" value={editedIn} onChange={(e) => setEditedIn(e.target.value)} className={`${inputCls} w-24`} />
           <div className="mt-1">{adjSel(inAdj, setInAdj)}</div>
         </td>
         <td className="p-3">
-          <input type="time" value={editedOut} onChange={(e) => setEditedOut(e.target.value)} className={`${inputCls} w-28`} />
+          <input type="time" value={editedOut} onChange={(e) => setEditedOut(e.target.value)} className={`${inputCls} w-24`} />
           <div className="mt-1">{adjSel(outAdj, setOutAdj)}</div>
         </td>
         <td className="p-3">
-          <input type="number" min={0} step={5} value={restMin} onChange={(e) => setRestMin(Number(e.target.value))} className={`${inputCls} w-20`} />
+          <input type="number" min={0} step={5} value={restMin} onChange={(e) => setRestMin(Number(e.target.value))} className={`${inputCls} w-16`} />
           <div className={`mt-1 text-xs ${restMin < reqRest ? "font-bold text-rose-600" : "text-slate-400"}`}>必要 {reqRest}分</div>
         </td>
         <td className="p-3 text-right font-mono">
@@ -434,7 +435,7 @@ function EditableRow({
             <span className={row.warn ? "font-bold text-rose-600" : ""}>{hhmm(row.restraintMin)}</span> / {hhmm(row.laborMin)} / {row.nightMin ?? "—"}
           </span>
           {row.warn && (
-            <div className="mt-1 ml-auto w-[15rem] max-w-full space-y-0.5 whitespace-normal break-words text-right text-xs font-normal font-sans leading-snug text-rose-600">
+            <div className="mt-1 ml-auto w-[11rem] max-w-full space-y-0.5 whitespace-normal break-words text-right text-xs font-normal font-sans leading-snug text-rose-600">
               {row.warn.split(" / ").map((w, i) => (
                 <div key={i}>⚠ {w}</div>
               ))}
@@ -453,7 +454,7 @@ function EditableRow({
             <input type="checkbox" checked={splitRest} onChange={(e) => setSplitRest(e.target.checked)} className="h-4 w-4" />分割休息
           </label>
         </td>
-        <td className="p-3"><input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="修正理由" className={`${inputCls} w-32`} /></td>
+        <td className="p-3"><input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="修正理由" className={`${inputCls} w-28`} /></td>
         <td className="p-3 whitespace-nowrap">
           <button onClick={save} disabled={saving} className="rounded-xl bg-slate-900 px-4 py-2 text-base font-bold text-white disabled:opacity-50">
             {saving ? "保存中…" : done ? "✓ 保存" : "保存"}
