@@ -29,8 +29,10 @@ export async function buildDispatchPayload(
     const affiliation = cleanText(r[0]);
     const name = cleanText(r[1]);
     const isSub = !!affiliation && !affiliation.includes("昭栄");
+    // ドライバーマスタは手動登録運用（現場方針 2026-09-19）。配車同期では新規作成せず、
+    //   既存ドライバーに名前一致で紐づけるだけ（create:false）。未登録者は driver_name_raw＋所属で表示。
     const driverId = !isSub && name
-      ? await resolver.resolve(name, { affiliation, create: true })
+      ? await resolver.resolve(name, { affiliation, create: false })
       : null;
 
     const note = [
