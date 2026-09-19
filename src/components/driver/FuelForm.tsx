@@ -13,7 +13,9 @@ import type { FuelInitialData, FuelStation } from "@/lib/operations/fuel";
  */
 
 const RETRO_CSS = `
-.fuel-app{font-family:'Helvetica Neue',Arial,sans-serif;line-height:1.4;color:#2b2b2b;background-color:#f2ebd9;background-image:radial-gradient(#e6dcbf 1px,transparent 1px);background-size:16px 16px;min-height:100dvh;padding:16px;}
+/* 他のドライバー画面と同じく中央寄せ・スマホ幅(max-w-md=28rem)に収める。背景の柄は全面(::before)に敷く。 */
+.fuel-app{position:relative;max-width:28rem;margin:0 auto;padding:16px;min-height:100dvh;font-family:'Helvetica Neue',Arial,sans-serif;line-height:1.4;color:#2b2b2b;}
+.fuel-app::before{content:"";position:fixed;inset:0;z-index:-1;background-color:#f2ebd9;background-image:radial-gradient(#e6dcbf 1px,transparent 1px);background-size:16px 16px;}
 .fuel-app .billboard{background-color:#c93b2b;color:#fff;text-align:center;padding:14px 10px;border:4px double #fff;border-radius:8px;box-shadow:0 4px 8px rgba(0,0,0,.15);margin-bottom:12px;}
 .fuel-app .billboard h2{margin:0;font-family:Impact,'Arial Black',sans-serif;letter-spacing:2px;font-size:24px;text-shadow:2px 2px 0 #1a365d;}
 .fuel-app .muted{color:#5c5543;font-size:12px;font-weight:bold;text-align:center;margin-bottom:12px;}
