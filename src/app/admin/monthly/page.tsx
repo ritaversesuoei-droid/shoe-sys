@@ -96,7 +96,8 @@ export default async function MonthlyPage({
                 <th className="p-3 text-right">出勤</th>
                 <th className="p-3 text-right">拘束</th>
                 <th className="p-3 text-right">労働</th>
-                <th className="p-3 text-right">休憩</th>
+                <th className="p-3 text-right">休憩(日中)</th>
+                <th className="p-3 text-right">休憩(深夜)</th>
                 <th className="p-3 text-right">残業</th>
                 <th className="p-3 text-right">休日</th>
                 <th className="p-3 text-right">深夜</th>
@@ -123,7 +124,7 @@ export default async function MonthlyPage({
                       "—"
                     ) : (
                       <>
-                        {hm(s.restMin)}
+                        {hm(s.restMin - s.restNightMin)}
                         {s.restIssueCount > 0 && (
                           <span className="ml-1 inline-block rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
                             要確認{s.restIssueCount}
@@ -132,6 +133,7 @@ export default async function MonthlyPage({
                       </>
                     )}
                   </td>
+                  <td className="p-3 text-right font-mono">{partner ? "—" : hm(s.restNightMin)}</td>
                   <td className="p-3 text-right font-mono">{partner ? "—" : hm(s.overtimeMin)}</td>
                   <td className="p-3 text-right font-mono">{partner ? "—" : hm(s.holidayWorkMin)}</td>
                   <td className="p-3 text-right font-mono">{hm(s.nightMin)}</td>

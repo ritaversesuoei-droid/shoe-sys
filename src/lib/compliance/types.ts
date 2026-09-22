@@ -53,7 +53,8 @@ export interface ShiftWorkMode {
 export interface ShiftMetrics {
   restraintMin: number | null; // 拘束時間
   laborMin: number | null; // 労働時間 = 拘束 − 休憩
-  nightMin: number; // 深夜労働
+  nightMin: number; // 深夜労働（深夜休憩を控除後）
+  nightRestMin: number; // 休憩のうち深夜(22-5)にかかった分（深夜労働から控除済み）
   restPeriodMin: number | null; // 休息期間 = 当勤務出勤 − 前勤務退勤
 }
 

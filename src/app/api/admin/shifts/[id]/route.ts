@@ -61,6 +61,18 @@ const schema = z.object({
   edited_in_adj_days: z.number().int().min(0).max(3).optional(),
   edited_out_adj_days: z.number().int().min(0).max(3).optional(),
   rest_min: z.number().int().min(0).max(1440).optional(),
+  // 休憩を時刻区間で入力（深夜/日中を自動判定）。指定時は rest_min より優先。空配列＝休憩なし。
+  rest_segments: z
+    .array(
+      z.object({
+        start: z.string().regex(/^\d{1,2}:\d{2}/),
+        start_adj: z.number().int().min(0).max(3).optional(),
+        end: z.string().regex(/^\d{1,2}:\d{2}/),
+        end_adj: z.number().int().min(0).max(3).optional(),
+      }),
+    )
+    .max(20)
+    .optional(),
   revision_reason: z.string().max(500).nullable().optional(),
   // 改善基準告示の特例（該当勤務のみ・要社労士確認）
   crew_type: z.enum(["single", "double"]).optional(),
@@ -81,6 +93,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       inAdjDays: body.edited_in_adj_days,
       outAdjDays: body.edited_out_adj_days,
       restMin: body.rest_min,
+      restSegments: body.rest_segments?.map((s) => ({
+        start: s.start,
+        startAdj: s.start_adj,
+        end: s.end,
+        endAdj: s.end_adj,
+      })),
       reason: body.revision_reason,
       crewType: body.crew_type,
       ferryMin: body.ferry_min,

@@ -782,7 +782,9 @@ export type Database = {
           labor_min: number | null
           month_key: string
           night_min: number | null
+          night_rest_min: number | null
           rest_period_min: number | null
+          rest_segments: Json | null
           rest_time: string
           restraint_min: number | null
           revision_reason: string | null
@@ -811,7 +813,9 @@ export type Database = {
           labor_min?: number | null
           month_key: string
           night_min?: number | null
+          night_rest_min?: number | null
           rest_period_min?: number | null
+          rest_segments?: Json | null
           rest_time?: string
           restraint_min?: number | null
           revision_reason?: string | null
@@ -840,7 +844,9 @@ export type Database = {
           labor_min?: number | null
           month_key?: string
           night_min?: number | null
+          night_rest_min?: number | null
           rest_period_min?: number | null
+          rest_segments?: Json | null
           rest_time?: string
           restraint_min?: number | null
           revision_reason?: string | null

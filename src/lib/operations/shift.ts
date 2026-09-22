@@ -121,6 +121,21 @@ export function pairBreakEvents(
   return out;
 }
 
+/** shift.rest_segments(jsonb) を休憩区間 {startIso,endIso}[] に変換（勤怠修正で時刻入力した休憩）。 */
+export function parseRestSegments(v: unknown): { startIso: string; endIso: string }[] {
+  if (!Array.isArray(v)) return [];
+  const out: { startIso: string; endIso: string }[] = [];
+  for (const s of v) {
+    if (s && typeof s === "object") {
+      const o = s as { startIso?: unknown; endIso?: unknown };
+      if (typeof o.startIso === "string" && typeof o.endIso === "string") {
+        out.push({ startIso: o.startIso, endIso: o.endIso });
+      }
+    }
+  }
+  return out;
+}
+
 /** 指定勤務の休憩区間を読む。休憩ボタン(打刻)が無ければ空＝深夜控除なし（手入力は従来どおり）。 */
 async function loadBreakIntervals(sb: SB, shiftId: string): Promise<{ startIso: string; endIso: string }[]> {
   const { data } = await sb
@@ -152,7 +167,9 @@ async function persistShiftMetrics(
   const prev = shift.clock_in_at
     ? await findPreviousClosedShift(sb, shift.driver_id, shift.clock_in_at)
     : null;
-  const breaks = await loadBreakIntervals(sb, shift.id); // ② 深夜休憩控除用
+  // ② 深夜休憩控除用の休憩区間: 勤怠修正で入力した時刻区間(rest_segments)を優先、無ければ打刻(rest_start/end)。
+  const editedSegs = parseRestSegments(shift.rest_segments);
+  const breaks = editedSegs.length > 0 ? editedSegs : await loadBreakIntervals(sb, shift.id);
   // 430(連続運転)判定は休憩ボタン運用時のみ（打刻区間から算出。手入力=打刻なしでは判定しない）。
   const continuousDriveMin = (await isRestButtonEnabled(sb))
     ? maxContinuousDriveMin(shift.clock_in_at, clockOutAt, breaks, config) ?? undefined
@@ -227,6 +244,9 @@ async function persistShiftMetrics(
     .eq("id", shift.id);
   if (updErr) throw updErr;
 
+  // 深夜休憩分の記録（月次「休憩(深夜)」表示用）。0024 未適用でも本処理を止めないよう別更新＋error無視。
+  await sb.from("shifts").update({ night_rest_min: metrics.nightRestMin }).eq("id", shift.id);
+
   // 違反/警告があれば台帳へ（shift と 1:1）。無ければ既存を削除（再計算で解消）。
   if (judgement.alertTypes.length > 0) {
     // status は payload に含めない: 更新時は既存 status を保持（是正解消済み resolved を再計算で
@@ -298,6 +318,9 @@ export interface ShiftEditInput {
   inAdjDays?: number;
   outAdjDays?: number;
   restMin?: number;
+  /** 休憩を時刻区間で入力（深夜/日中を自動判定）。指定時は restMin より優先し、合計＝rest_time。
+   *  空配列＝休憩なし（区間クリア）。undefined＝据え置き。 */
+  restSegments?: { start: string; startAdj?: number; end: string; endAdj?: number }[];
   reason?: string | null;
   // 改善基準告示の特例（該当勤務のみ・要社労士確認）
   crewType?: "single" | "double";
@@ -328,6 +351,35 @@ export async function applyShiftEdit(
   const clockIn = `${addDaysStr(shift.work_date, inAdj)}T${inTime}:00+09:00`;
   const clockOut = outTime ? `${addDaysStr(shift.work_date, outAdj)}T${outTime}:00+09:00` : null;
 
+  // 休憩: 時刻区間(restSegments)が指定されればそれを保存し合計を rest_time に。無指定は従来の restMin/据え置き。
+  let restTimeVal = edit.restMin != null ? minToInterval(edit.restMin) : shift.rest_time;
+  let restSegmentsVal: Json | null = shift.rest_segments as Json | null;
+  if (edit.restSegments) {
+    const isoSegs = edit.restSegments
+      .map((s) => {
+        const st = hhmmOf(s.start);
+        const en = hhmmOf(s.end);
+        if (!st || !en) return null;
+        return {
+          startIso: `${addDaysStr(shift.work_date, s.startAdj ?? 0)}T${st}:00+09:00`,
+          endIso: `${addDaysStr(shift.work_date, s.endAdj ?? 0)}T${en}:00+09:00`,
+        };
+      })
+      .filter((x): x is { startIso: string; endIso: string } => !!x);
+    if (isoSegs.length > 0) {
+      const total = isoSegs.reduce(
+        (m, s) => m + Math.max(0, (Date.parse(s.endIso) - Date.parse(s.startIso)) / 60000),
+        0,
+      );
+      restSegmentsVal = isoSegs as unknown as Json;
+      restTimeVal = minToInterval(Math.round(total));
+    } else {
+      // 時刻区間をクリア（手入力へ戻す）＝区間なし。合計は restMin があればそれ、無ければ据え置き。
+      restSegmentsVal = null;
+      restTimeVal = edit.restMin != null ? minToInterval(edit.restMin) : shift.rest_time;
+    }
+  }
+
   const { error: e1 } = await sb
     .from("shifts")
     .update({
@@ -337,7 +389,7 @@ export async function applyShiftEdit(
       edited_out: outTime ? `${outTime}:00` : null,
       edited_in_adj_days: inAdj,
       edited_out_adj_days: outAdj,
-      rest_time: edit.restMin != null ? minToInterval(edit.restMin) : shift.rest_time,
+      rest_time: restTimeVal,
       revision_status: "edited",
       revision_reason: edit.reason ?? shift.revision_reason,
       crew_type: edit.crewType ?? shift.crew_type,
@@ -346,6 +398,11 @@ export async function applyShiftEdit(
     })
     .eq("id", shiftId);
   if (e1) throw e1;
+
+  // 休憩の時刻区間を保存（深夜/日中判定の材料）。0024 未適用でも編集本体を止めないよう別更新＋error無視。
+  if (edit.restSegments) {
+    await sb.from("shifts").update({ rest_segments: restSegmentsVal }).eq("id", shiftId);
+  }
 
   return recomputeShift(sb, shiftId);
 }
