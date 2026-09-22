@@ -8,6 +8,7 @@ interface Driver {
   name: string;
   default_vehicle_no: string | null;
   affiliation: string | null;
+  phone: string | null;
   is_active: boolean;
   manage_attendance: boolean;
 }
@@ -45,7 +46,7 @@ export function MasterManager() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [nd, setNd] = useState({ code: "", name: "", default_vehicle_no: "", affiliation: "" });
+  const [nd, setNd] = useState({ code: "", name: "", default_vehicle_no: "", affiliation: "", phone: "" });
   const [nv, setNv] = useState({ vehicle_no: "", name: "", kind: "", registered_on: "", inspection_expiry: "" });
   const [nc, setNc] = useState({ name: "", yago: "", address: "" });
 
@@ -85,9 +86,10 @@ export function MasterManager() {
       {/* ドライバー */}
       <section>
         <h2 className="mb-3 text-lg font-semibold">ドライバーマスタ（{drivers.length}）</h2>
-        <div className="mb-3 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-5">
+        <div className="mb-3 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-6">
           <input placeholder="業務ID*" value={nd.code} onChange={(e) => setNd({ ...nd, code: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
           <input placeholder="氏名*" value={nd.name} onChange={(e) => setNd({ ...nd, name: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
+          <input placeholder="携帯番号" value={nd.phone} onChange={(e) => setNd({ ...nd, phone: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
           <input placeholder="既定車番" value={nd.default_vehicle_no} onChange={(e) => setNd({ ...nd, default_vehicle_no: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
           <input placeholder="所属" value={nd.affiliation} onChange={(e) => setNd({ ...nd, affiliation: e.target.value })} className="rounded-lg border border-slate-300 px-3 py-2.5 text-base" />
           <button
@@ -96,8 +98,9 @@ export function MasterManager() {
                 code: nd.code, name: nd.name,
                 default_vehicle_no: nd.default_vehicle_no || undefined,
                 affiliation: nd.affiliation || undefined,
+                phone: nd.phone || undefined,
               });
-              setNd({ code: "", name: "", default_vehicle_no: "", affiliation: "" });
+              setNd({ code: "", name: "", default_vehicle_no: "", affiliation: "", phone: "" });
             })}
             className="rounded-xl bg-slate-900 px-4 py-2.5 text-base font-bold text-white"
           >
@@ -106,12 +109,20 @@ export function MasterManager() {
         </div>
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left"><tr><th className="p-2">ID</th><th className="p-2">氏名</th><th className="p-2">既定車番</th><th className="p-2">所属</th><th className="p-2">勤怠管理</th><th className="p-2">在籍</th></tr></thead>
+            <thead className="bg-slate-50 text-left"><tr><th className="p-2">ID</th><th className="p-2">氏名</th><th className="p-2">携帯番号</th><th className="p-2">既定車番</th><th className="p-2">所属</th><th className="p-2">勤怠管理</th><th className="p-2">在籍</th></tr></thead>
             <tbody>
               {drivers.map((d) => (
                 <tr key={d.id} className={`border-t ${d.is_active ? "" : "opacity-50"}`}>
                   <td className="p-2">{d.code}</td>
                   <td className="p-2">{d.name}</td>
+                  <td className="p-2">
+                    <input
+                      defaultValue={d.phone ?? ""}
+                      placeholder="携帯番号"
+                      onBlur={(e) => e.target.value !== (d.phone ?? "") && run(() => api(`/api/admin/drivers/${d.id}`, "PATCH", { phone: e.target.value || null }))}
+                      className="w-36 rounded border border-slate-300 px-2 py-1 text-sm"
+                    />
+                  </td>
                   <td className="p-2">{d.default_vehicle_no ?? "-"}</td>
                   <td className="p-2">{d.affiliation ?? "-"}</td>
                   <td className="p-2">

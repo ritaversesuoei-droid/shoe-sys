@@ -17,12 +17,13 @@ function mdw(d: string): string {
   return `${dt.getUTCMonth() + 1}/${dt.getUTCDate()}(${WD[dt.getUTCDay()]})`;
 }
 
-function jobBox(j: LFJob, dateField: "plan" | "arrival"): string {
+function jobBox(j: LFJob, dateField: "plan" | "arrival", widthPct?: number): string {
   const date = mdw(dateField === "arrival" ? j.arrivalDate : j.planDate);
   const time = j.arrivalTime && j.arrivalTime.trim() ? esc(j.arrivalTime) : "到着指定";
   const exp = j.express && j.express.trim() ? esc(j.express) : "高速指示";
   const veh = j.vehicleNo ? `<span class="jveh">車:${esc(j.vehicleNo)}</span> ` : "";
-  return `<div class="job${j.isSubcontract ? " sub" : ""}">
+  const style = widthPct ? ` style="width:${widthPct.toFixed(2)}%"` : "";
+  return `<div class="job${j.isSubcontract ? " sub" : ""}"${style}>
     <div class="jdate">${date}</div>
     <div class="jroute">${veh}${esc(j.originSpot) || "—"} <span class="jarrow">→</span> ${esc(j.destSpot) || "—"}</div>
     <div class="jtime">${time}</div>
@@ -34,7 +35,9 @@ function driverRow(d: LFDriver): string {
   const am = d.amJobs.length
     ? d.amJobs.map((j) => jobBox(j, "plan")).join("")
     : `<div class="hold">START / PRE-LOAD<br>昭栄車庫</div>`;
-  const flow = d.jobs.length ? d.jobs.map((j) => jobBox(j, "plan")).join("") : `<div class="hold">—</div>`;
+  // 当日フローは「1件=1/3幅（広がりすぎ防止／余白にメモ）」。4件時は1/4へ自動縮小し1行に収める。
+  const fw = d.jobs.length ? 100 / Math.max(d.jobs.length, 3) - 1.2 : 0;
+  const flow = d.jobs.length ? d.jobs.map((j) => jobBox(j, "plan", fw)).join("") : `<div class="hold">—</div>`;
   const next = d.nextDayJobs.length
     ? d.nextDayJobs.map((j) => jobBox(j, "arrival")).join("")
     : `<div class="hold">NEXT DAY<br>昭栄車庫(待機)</div>`;
@@ -42,6 +45,7 @@ function driverRow(d: LFDriver): string {
     <td class="c-drv">
       <div class="belong">${esc(d.belong)}</div>
       <div class="dname">${esc(d.name)}</div>
+      ${d.phone ? `<div class="dphone">${esc(d.phone)}</div>` : ""}
       ${d.vehicle ? `<div class="dveh">${esc(d.vehicle)}</div>` : ""}
     </td>
     <td class="c-am"><div class="cellcol">${am}</div></td>
@@ -67,12 +71,13 @@ export function renderLogiFlowHtml(board: LFBoard): string {
   .c-drv{ width:11%; text-align:center; } .c-am{ width:19%; } .c-flow{ width:51%; } .c-next{ width:19%; }
   .belong{ font-size:7px; color:#666; }
   .dname{ font-weight:bold; font-size:11px; line-height:1.2; }
+  .dphone{ font-size:8px; color:#444; line-height:1.2; margin-top:1px; }
   .dveh{ display:inline-block; border:1px solid #111; border-radius:2px; padding:0 4px; font-size:9px; font-weight:bold; margin-top:1px; }
-  /* 当日フロー=横並び(2列で折返し) / AM・翌日=縦積み(1件=セル幅いっぱい)。min-width:0 で列外へはみ出させない */
+  /* 当日フロー=横並び(1件=1/3幅・最大4件で1/4へ) / AM・翌日=縦積み(1件=セル幅いっぱい)。min-width:0 で列外へはみ出させない */
   .cellflex{ display:flex; flex-wrap:wrap; gap:3px; align-items:stretch; }
   .cellcol{ display:flex; flex-direction:column; gap:3px; }
-  .job{ border:1px solid #bbb; border-radius:3px; padding:2px 3px; min-width:0; background:#fff; overflow:hidden; }
-  .cellflex > .job{ flex:1 1 45%; max-width:100%; }
+  .job{ border:1px solid #bbb; border-radius:3px; padding:2px 3px; min-width:0; box-sizing:border-box; background:#fff; overflow:hidden; }
+  .cellflex > .job{ flex:0 0 auto; } /* 幅はインラインstyleで件数に応じ指定（1/3〜1/4） */
   .cellcol > .job{ width:100%; }
   .job.sub{ background:#fffbf0; border-color:#e0c890; }
   .jdate{ font-size:7px; color:#666; }

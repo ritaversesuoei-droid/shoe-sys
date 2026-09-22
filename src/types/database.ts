@@ -439,6 +439,7 @@ export type Database = {
           line_user_id: string | null
           manage_attendance: boolean
           name: string
+          phone: string | null
           normal_fuel_max: number | null
           normal_fuel_min: number | null
           prize_rank: string | null
@@ -456,6 +457,7 @@ export type Database = {
           line_user_id?: string | null
           manage_attendance?: boolean
           name: string
+          phone?: string | null
           normal_fuel_max?: number | null
           normal_fuel_min?: number | null
           prize_rank?: string | null
@@ -473,6 +475,7 @@ export type Database = {
           line_user_id?: string | null
           manage_attendance?: boolean
           name?: string
+          phone?: string | null
           normal_fuel_max?: number | null
           normal_fuel_min?: number | null
           prize_rank?: string | null

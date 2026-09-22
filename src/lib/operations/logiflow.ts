@@ -20,6 +20,7 @@ export interface LFDriver {
   key: string; // DOM用（空白除去）
   id: string | null; // ドライバーマスタ id(uuid)。未登録(協力/名前のみ)は null。出勤指示時間の対象。
   name: string;
+  phone: string | null; // 携帯番号（マスタ手入力・任意）。氏名の下に表示。
   code: string | null;
   belong: string; // 自社 / 協力
   vehicle: string | null;
@@ -78,6 +79,7 @@ export async function getLogiFlowBoard(sb: SB, dateStr: string): Promise<LFBoard
         key: name.replace(/\s/g, "") || "x",
         id: r.driver_id ?? null,
         name,
+        phone: null,
         code: drv?.code ?? null,
         belong,
         vehicle: null,
@@ -140,5 +142,17 @@ export async function getLogiFlowBoard(sb: SB, dateStr: string): Promise<LFBoard
       (a.code ?? "zzz").localeCompare(b.code ?? "zzz") ||
       a.name.localeCompare(b.name),
   );
+
+  // 携帯番号（マスタ手入力・任意）。phone 列が無い環境(未マイグレーション)でも落ちないよう別クエリ＋error無視。
+  const driverIds = drivers.map((d) => d.id).filter((x): x is string => !!x);
+  if (driverIds.length > 0) {
+    const { data: ph, error: phErr } = await sb.from("drivers").select("id, phone").in("id", driverIds);
+    if (!phErr && ph) {
+      const pm = new Map<string, string | null>();
+      for (const p of ph) pm.set(p.id, (p as { phone?: string | null }).phone ?? null);
+      for (const d of drivers) if (d.id) d.phone = pm.get(d.id) ?? null;
+    }
+  }
+
   return { date: dateStr, drivers, totalJobs };
 }
