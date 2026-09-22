@@ -11,6 +11,7 @@ import { WritebackButton } from "@/components/admin/WritebackButton";
 import { PrintButton } from "@/components/admin/PrintButton";
 import { DispatchTable } from "@/components/admin/DispatchTable";
 import { AttendanceInstructionPanel } from "@/components/admin/AttendanceInstructionPanel";
+import { ShipperOrderPanel } from "@/components/admin/ShipperOrderPanel";
 import { getInstructionsForDate } from "@/lib/operations/attendance-instruction";
 
 export const dynamic = "force-dynamic";
@@ -86,6 +87,36 @@ export default async function DispatchPage({
   })();
   const instructions = await getInstructionsForDate(supabase, day);
 
+  // 荷主の表示順（app_settings）＋全荷主一覧（パネルの候補）。配車表を荷主ごとにまとめて指定順に並べる。
+  const { data: orderSetting } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "dispatch_shipper_order")
+    .maybeSingle();
+  const shipperOrder = Array.isArray(orderSetting?.value)
+    ? (orderSetting!.value as unknown[]).filter((x): x is string => typeof x === "string")
+    : [];
+  const { data: allShipperRows } = await supabase.from("dispatch_plans").select("shipper").not("shipper", "is", null);
+  const shipperCounts = new Map<string, number>();
+  for (const r of allShipperRows ?? []) {
+    const s = (r.shipper ?? "").trim();
+    if (s) shipperCounts.set(s, (shipperCounts.get(s) ?? 0) + 1);
+  }
+  const shippers = [...shipperCounts.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+  const rankOf = (s: string | null) => {
+    const i = shipperOrder.indexOf((s ?? "").trim());
+    return i >= 0 ? i : shipperOrder.length + 1;
+  };
+  // 荷主ごとにまとめる（指定順→未指定は名前順）。同一荷主内は 自社→子車 / sort_no / 担当者名 で安定化。
+  const sortedRows = [...rows].sort(
+    (a, b) =>
+      rankOf(a.shipper) - rankOf(b.shipper) ||
+      (a.shipper ?? "").localeCompare(b.shipper ?? "", "ja") ||
+      (a.is_subcontract ? 1 : 0) - (b.is_subcontract ? 1 : 0) ||
+      (a.sort_no ?? 999999) - (b.sort_no ?? 999999) ||
+      nameOf(a).localeCompare(nameOf(b), "ja"),
+  );
+
   const shift = (n: number): string => {
     const d = new Date(`${day}T00:00:00Z`);
     d.setUTCDate(d.getUTCDate() + n);
@@ -160,12 +191,13 @@ export default async function DispatchPage({
       </p>
 
       <AttendanceInstructionPanel date={day} drivers={dayDrivers} initial={instructions} />
+      <ShipperOrderPanel initialOrder={shipperOrder} shippers={shippers} />
 
       <DispatchTable
         date={day}
         confirmed={confirmed}
         now={new Date().toISOString()}
-        rows={rows.map((r) => ({
+        rows={sortedRows.map((r) => ({
           id: r.id,
           driver_name_raw: r.driver_name_raw,
           driver_name: (r.drivers as { name: string } | null)?.name ?? null,
