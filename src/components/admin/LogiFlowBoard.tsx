@@ -258,6 +258,7 @@ export function LogiFlowBoard({
               <div className="flex flex-col items-center justify-center border-r-2 border-black bg-slate-50 p-1 text-center">
                 <span className="text-[8px] text-slate-400">{d.belong}</span>
                 <span className="text-sm font-bold leading-tight">{d.name}</span>
+                {d.phone && <span className="text-[9px] leading-tight text-slate-500">{d.phone}</span>}
                 <span className="mt-1 inline-block border border-black px-1 text-[10px] font-bold">{d.vehicle ?? "--"}</span>
                 {editing && (
                   <button onClick={() => addJob(d.name)} disabled={busy} className="mt-1 rounded border border-black px-1.5 text-[8px] font-bold no-print">＋案件</button>

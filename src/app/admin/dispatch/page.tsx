@@ -94,8 +94,17 @@ export default async function DispatchPage({
 
   return (
     <main className="w-full p-3 sm:p-6">
-      {/* 印刷時: ナビ非表示・A4横 */}
-      <style>{`@media print { nav { display: none !important; } @page { size: A4 landscape; margin: 8mm; } main { padding: 0 !important; max-width: none !important; } }`}</style>
+      {/* 印刷時: ナビ非表示・A4縦・1〜2枚に詰める（横向き/多ページ化の解消） */}
+      <style>{`@media print {
+        nav { display: none !important; }
+        @page { size: A4 portrait; margin: 8mm; }
+        main { padding: 0 !important; max-width: none !important; }
+        /* 画面のズーム/幅指定をリセットして用紙幅に収める */
+        .board-zoom { zoom: 1 !important; width: auto !important; }
+        table { font-size: 8px !important; width: 100% !important; table-layout: fixed; }
+        th, td { padding: 2px 3px !important; white-space: normal !important; word-break: break-word; }
+        tr { break-inside: avoid; page-break-inside: avoid; }
+      }`}</style>
 
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div>
@@ -130,7 +139,7 @@ export default async function DispatchPage({
           <Link href={`/admin/dispatch?date=${shift(-1)}${driver ? `&driver=${encodeURIComponent(driver)}` : ""}`} className="rounded-xl bg-slate-200 px-4 py-3 text-base font-bold text-slate-700 hover:bg-slate-300">◀ 前日</Link>
           <form method="GET" className="flex items-center gap-2">
             {driver && <input type="hidden" name="driver" value={driver} />}
-            <input type="date" name="date" defaultValue={day} min={earliest?.plan_date ?? undefined} max={latest?.plan_date ?? undefined} className="rounded-lg border border-slate-300 px-3 py-3 text-base" />
+            <input key={day} type="date" name="date" defaultValue={day} min={earliest?.plan_date ?? undefined} max={latest?.plan_date ?? undefined} className="rounded-lg border border-slate-300 px-3 py-3 text-base" />
             <button type="submit" className="rounded-xl bg-slate-900 px-4 py-3 text-base font-bold text-white">表示</button>
           </form>
           <Link href={`/admin/dispatch?date=${shift(1)}${driver ? `&driver=${encodeURIComponent(driver)}` : ""}`} className="rounded-xl bg-slate-200 px-4 py-3 text-base font-bold text-slate-700 hover:bg-slate-300">翌日 ▶</Link>

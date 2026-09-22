@@ -30,6 +30,7 @@ export async function POST(request: Request) {
         name: body.name,
         default_vehicle_no: body.default_vehicle_no ?? null,
         affiliation: body.affiliation ?? null,
+        phone: body.phone ?? null,
         line_user_id: body.line_user_id ?? null,
         manage_attendance: body.manage_attendance ?? true,
       })

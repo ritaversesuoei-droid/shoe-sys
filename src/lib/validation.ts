@@ -114,6 +114,7 @@ export const driverCreateSchema = z.object({
   name: z.string().min(1, "氏名は必須"),
   default_vehicle_no: z.string().optional(),
   affiliation: z.string().optional(),
+  phone: z.string().optional(),
   line_user_id: z.string().optional(),
   manage_attendance: z.boolean().optional(),
 });
@@ -121,6 +122,7 @@ export const driverUpdateSchema = z.object({
   name: z.string().min(1).optional(),
   default_vehicle_no: z.string().nullable().optional(),
   affiliation: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
   line_user_id: z.string().nullable().optional(),
   is_active: z.boolean().optional(),
   manage_attendance: z.boolean().optional(),
