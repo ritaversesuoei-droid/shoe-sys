@@ -376,9 +376,10 @@ export async function applyShiftEdit(
       restSegmentsVal = isoSegs as unknown as Json;
       restTimeVal = minToInterval(Math.round(total));
     } else {
-      // 時刻区間をクリア（手入力へ戻す）＝区間なし。合計は restMin があればそれ、無ければ据え置き。
+      // 区間なし: 手入力モード=restMin(区間クリア) / 時刻モードで区間ゼロ=休憩0。
+      //   restMin 指定時はそれ、未指定(時刻モードで空)なら 0 を採用する。
       restSegmentsVal = null;
-      restTimeVal = edit.restMin != null ? minToInterval(edit.restMin) : shift.rest_time;
+      restTimeVal = edit.restMin != null ? minToInterval(edit.restMin) : minToInterval(0);
     }
   }
 
