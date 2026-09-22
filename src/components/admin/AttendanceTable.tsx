@@ -424,6 +424,11 @@ function EditableRow({
     setErr(null);
     setDone(false);
     try {
+      // 時刻モード=区間のみ送る（空=休憩0）。手入力モード=分数を送り区間[]でクリア。
+      //   両方を同時に送らないことで「時刻ON・区間空」と「手入力」を明確に区別する。
+      const restPart = useSegs
+        ? { rest_segments: segs.filter((s) => s.start && s.end).map((s) => ({ start: s.start, start_adj: s.startAdj, end: s.end, end_adj: s.endAdj })) }
+        : { rest_min: restMin, rest_segments: [] as { start: string; start_adj: number; end: string; end_adj: number }[] };
       const res = await fetch(`/api/admin/shifts/${row.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -432,11 +437,7 @@ function EditableRow({
           edited_out: editedOut || null,
           edited_in_adj_days: inAdj,
           edited_out_adj_days: outAdj,
-          rest_min: restMin,
-          // 時刻モード=区間を送る（深夜/日中を自動判定・合計をrest_timeに）。手入力モード=[]で区間クリア。
-          rest_segments: useSegs
-            ? segs.filter((s) => s.start && s.end).map((s) => ({ start: s.start, start_adj: s.startAdj, end: s.end, end_adj: s.endAdj }))
-            : [],
+          ...restPart,
           revision_reason: reason || null,
           crew_type: crewType,
           ferry_min: ferryMin,
