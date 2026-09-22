@@ -360,10 +360,12 @@ export async function applyShiftEdit(
         const st = hhmmOf(s.start);
         const en = hhmmOf(s.end);
         if (!st || !en) return null;
-        return {
-          startIso: `${addDaysStr(shift.work_date, s.startAdj ?? 0)}T${st}:00+09:00`,
-          endIso: `${addDaysStr(shift.work_date, s.endAdj ?? 0)}T${en}:00+09:00`,
-        };
+        const startIso = `${addDaysStr(shift.work_date, s.startAdj ?? 0)}T${st}:00+09:00`;
+        const startMs = Date.parse(startIso);
+        let endMs = Date.parse(`${addDaysStr(shift.work_date, s.endAdj ?? 0)}T${en}:00+09:00`);
+        // 終了が開始以前＝日跨ぎ休憩（例 23:00→00:30 を「当日」のまま入力）は +24h 自動補正。
+        if (endMs <= startMs) endMs += 24 * 60 * 60 * 1000;
+        return { startIso, endIso: new Date(endMs).toISOString() };
       })
       .filter((x): x is { startIso: string; endIso: string } => !!x);
     if (isoSegs.length > 0) {

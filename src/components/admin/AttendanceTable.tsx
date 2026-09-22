@@ -77,8 +77,9 @@ function segTotals(workDate: string, segs: BreakSeg[]): { total: number; night: 
   let night = 0;
   for (const s of segs) {
     const a = segToMs(workDate, s.start, s.startAdj);
-    const b = segToMs(workDate, s.end, s.endAdj);
-    if (a == null || b == null || b <= a) continue;
+    let b = segToMs(workDate, s.end, s.endAdj);
+    if (a == null || b == null) continue;
+    if (b <= a) b += 24 * 60 * 60 * 1000; // 日跨ぎ休憩（23:00→00:30を当日入力）を +24h 補正（サーバと一致）
     total += Math.round((b - a) / 60_000);
     night += nightMinutesOf(a, b);
   }
