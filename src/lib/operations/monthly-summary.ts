@@ -111,10 +111,12 @@ export async function getMonthlySummary(
   if (error) throw error;
 
   // 深夜休憩(night_rest_min)は別クエリで best-effort 取得（0024 未適用でも月次を落とさない）。
+  //   本体と同じ絞り込み(month_key[+driver])で取得＝大きな月でも id 列挙による長大URL/失敗を避ける。
   const nightRestMap = new Map<string, number>();
-  const shiftIds = (shifts ?? []).map((s) => s.id);
-  if (shiftIds.length > 0) {
-    const { data: nr, error: nrErr } = await sb.from("shifts").select("id, night_rest_min").in("id", shiftIds);
+  {
+    let nq = sb.from("shifts").select("id, night_rest_min").eq("month_key", monthKey);
+    if (driverId) nq = nq.eq("driver_id", driverId);
+    const { data: nr, error: nrErr } = await nq;
     if (!nrErr && nr) {
       for (const r of nr) nightRestMap.set(r.id, (r as { night_rest_min?: number | null }).night_rest_min ?? 0);
     }
