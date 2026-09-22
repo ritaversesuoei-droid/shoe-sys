@@ -19,6 +19,8 @@ export interface AttendanceRow {
   restraintMin: number | null;
   laborMin: number | null;
   nightMin: number | null;
+  nightRestMin: number | null; // 休憩のうち深夜(22-5)分（深夜労働から控除済み）
+  restSegments: { startIso: string; endIso: string }[] | null; // 休憩の時刻区間（時刻入力）
   warn: string | null;
   revisionStatus: string;
   revisionReason: string | null;
@@ -42,6 +44,102 @@ const hhmm = (min: number | null): string => {
 };
 const WD = ["日", "月", "火", "水", "木", "金", "土"] as const;
 const dow = (workDate: string): string => WD[new Date(`${workDate}T00:00:00Z`).getUTCDay()] ?? "";
+
+// ── 休憩の時刻区間（深夜/日中の自動判定）用ヘルパー ──
+type BreakSeg = { start: string; startAdj: number; end: string; endAdj: number };
+/** ISO(区間の端) → workDate 基準の { HH:MM, 日補正 }（JST壁時計）。 */
+function isoToHmAdj(iso: string, workDate: string): { hm: string; adj: number } {
+  const dt = new Date(iso);
+  const ymd = dt.toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
+  const hm = dt.toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false });
+  const adj = Math.round((Date.parse(`${ymd}T00:00:00Z`) - Date.parse(`${workDate}T00:00:00Z`)) / 86_400_000);
+  return { hm, adj: Math.max(0, Math.min(3, adj)) };
+}
+/** HH:MM + 日補正 → workDate 基準の epoch(ms)（JST）。 */
+function segToMs(workDate: string, hm: string, adj: number): number | null {
+  const m = /^(\d{1,2}):(\d{2})/.exec(hm);
+  if (!m) return null;
+  return Date.parse(`${workDate}T00:00:00+09:00`) + adj * 86_400_000 + (Number(m[1]) * 60 + Number(m[2])) * 60_000;
+}
+/** 区間 [startMs,endMs) の深夜(22:00-05:00 JST)分。 */
+function nightMinutesOf(startMs: number, endMs: number): number {
+  if (endMs <= startMs) return 0;
+  let n = 0;
+  for (let t = startMs; t < endMs; t += 60_000) {
+    const h = new Date(t + 9 * 3_600_000).getUTCHours();
+    if (h >= 22 || h < 5) n += 1;
+  }
+  return n;
+}
+/** 休憩区間の合計/深夜/日中(分)。 */
+function segTotals(workDate: string, segs: BreakSeg[]): { total: number; night: number; day: number } {
+  let total = 0;
+  let night = 0;
+  for (const s of segs) {
+    const a = segToMs(workDate, s.start, s.startAdj);
+    const b = segToMs(workDate, s.end, s.endAdj);
+    if (a == null || b == null || b <= a) continue;
+    total += Math.round((b - a) / 60_000);
+    night += nightMinutesOf(a, b);
+  }
+  return { total, night, day: Math.max(0, total - night) };
+}
+
+/** 休憩の時刻区間エディタ（勤怠修正の詳細内）。ONにして開始/終了を入れると深夜/日中を自動判定。 */
+function BreakTimeEditor({
+  workDate,
+  useSegs,
+  setUseSegs,
+  segs,
+  setSegs,
+}: {
+  workDate: string;
+  useSegs: boolean;
+  setUseSegs: (v: boolean) => void;
+  segs: BreakSeg[];
+  setSegs: (v: BreakSeg[]) => void;
+}) {
+  const t = segTotals(workDate, segs);
+  const upd = (i: number, patch: Partial<BreakSeg>) => setSegs(segs.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+  const adjSel = (v: number, on: (n: number) => void) => (
+    <select value={v} onChange={(e) => on(Number(e.target.value))} className="rounded border border-slate-300 px-1 py-1 text-xs">
+      <option value={0}>当日</option>
+      <option value={1}>翌日</option>
+    </select>
+  );
+  return (
+    <div className="mb-3 rounded-lg border border-indigo-200 bg-indigo-50/40 p-3">
+      <label className="flex items-center gap-2 text-sm font-bold text-indigo-800">
+        <input type="checkbox" checked={useSegs} onChange={(e) => setUseSegs(e.target.checked)} className="h-4 w-4" />
+        休憩を時刻で入力（深夜 22:00〜5:00 を自動判定して深夜労働から控除）
+      </label>
+      {useSegs && (
+        <div className="mt-2 space-y-1.5">
+          {segs.length === 0 && <p className="text-xs text-slate-500">「＋ 休憩を追加」で開始/終了を入力してください。</p>}
+          {segs.map((s, i) => (
+            <div key={i} className="flex flex-wrap items-center gap-1 text-sm">
+              <input type="time" value={s.start} onChange={(e) => upd(i, { start: e.target.value })} className="rounded border border-slate-300 px-2 py-1" />
+              {adjSel(s.startAdj, (v) => upd(i, { startAdj: v }))}
+              <span className="px-0.5">〜</span>
+              <input type="time" value={s.end} onChange={(e) => upd(i, { end: e.target.value })} className="rounded border border-slate-300 px-2 py-1" />
+              {adjSel(s.endAdj, (v) => upd(i, { endAdj: v }))}
+              <button onClick={() => setSegs(segs.filter((_, j) => j !== i))} className="rounded border border-red-300 px-2 py-1 text-xs font-bold text-red-600">×</button>
+            </div>
+          ))}
+          <button
+            onClick={() => setSegs([...segs, { start: "12:00", startAdj: 0, end: "12:45", endAdj: 0 }])}
+            className="rounded border border-indigo-300 bg-white px-2 py-1 text-xs font-bold text-indigo-700"
+          >
+            ＋ 休憩を追加
+          </button>
+          <div className="text-xs text-slate-600">
+            合計 <b>{t.total}分</b>（日中 <b>{t.day}</b> / 深夜 <b>{t.night}</b>）。この行の<b>「保存」</b>で反映され、深夜分は深夜労働から自動控除されます。
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 /** 労基法34条: 労働6h超→45分、8h超→60分 の必要休憩。 */
 const requiredRest = (labor: number | null): number => (labor == null ? 0 : labor > 480 ? 60 : labor > 360 ? 45 : 0);
 const crewLabel = (c: string): string => (c === "double" ? "2人乗務" : "通常");
@@ -300,6 +398,17 @@ function EditableRow({
   const [inAdj, setInAdj] = useState(row.inAdj);
   const [outAdj, setOutAdj] = useState(row.outAdj);
   const [restMin, setRestMin] = useState(intervalToMin(row.restTime));
+  // 休憩を時刻区間で入力（深夜/日中の自動判定）。既存の区間があれば時刻モードで開始。
+  const [useSegs, setUseSegs] = useState((row.restSegments?.length ?? 0) > 0);
+  const [segs, setSegs] = useState<BreakSeg[]>(() =>
+    (row.restSegments ?? []).map((s) => {
+      const a = isoToHmAdj(s.startIso, row.workDate);
+      const b = isoToHmAdj(s.endIso, row.workDate);
+      return { start: a.hm, startAdj: a.adj, end: b.hm, endAdj: b.adj };
+    }),
+  );
+  const segSum = segTotals(row.workDate, segs);
+  const effRestMin = useSegs ? segSum.total : restMin;
   const [reason, setReason] = useState(row.revisionReason ?? "");
   const [crewType, setCrewType] = useState<"single" | "double">(row.crewType === "double" ? "double" : "single");
   const [ferryMin, setFerryMin] = useState(row.ferryMin ?? 0);
@@ -323,6 +432,10 @@ function EditableRow({
           edited_in_adj_days: inAdj,
           edited_out_adj_days: outAdj,
           rest_min: restMin,
+          // 時刻モード=区間を送る（深夜/日中を自動判定・合計をrest_timeに）。手入力モード=[]で区間クリア。
+          rest_segments: useSegs
+            ? segs.filter((s) => s.start && s.end).map((s) => ({ start: s.start, start_adj: s.startAdj, end: s.end, end_adj: s.endAdj }))
+            : [],
           revision_reason: reason || null,
           crew_type: crewType,
           ferry_min: ferryMin,
@@ -355,6 +468,7 @@ function EditableRow({
   const detailRow = open && (
     <tr className={rowBg}>
       <td colSpan={99} className="px-3 pb-3">
+        <BreakTimeEditor workDate={row.workDate} useSegs={useSegs} setUseSegs={setUseSegs} segs={segs} setSegs={setSegs} />
         <DetailPanel row={row} />
       </td>
     </tr>
@@ -377,8 +491,11 @@ function EditableRow({
           <td className={xcell}>{adjSel(inAdj, setInAdj, true)}</td>
           <td className={xcell}><input type="time" value={editedOut} onChange={(e) => setEditedOut(e.target.value)} className={`${xinput} w-24`} /></td>
           <td className={xcell}>{adjSel(outAdj, setOutAdj, true)}</td>
-          <td className={xcell}><input type="number" min={0} step={5} value={restMin} onChange={(e) => setRestMin(Number(e.target.value))} className={`${xinput} w-14`} /></td>
-          <td className={`${xcell} text-center ${restMin < reqRest ? "font-bold text-rose-600" : "text-slate-400"}`}>{reqRest || "—"}</td>
+          <td className={xcell}>
+            <input type="number" min={0} step={5} value={effRestMin} readOnly={useSegs} onChange={(e) => !useSegs && setRestMin(Number(e.target.value))} className={`${xinput} w-14 ${useSegs ? "bg-slate-100 text-slate-500" : ""}`} />
+            {useSegs && <div className="text-[9px] text-slate-500">深{segSum.night}/日{segSum.day}</div>}
+          </td>
+          <td className={`${xcell} text-center ${effRestMin < reqRest ? "font-bold text-rose-600" : "text-slate-400"}`}>{reqRest || "—"}</td>
           <td className={`${xcell} text-right font-mono ${row.warn ? "font-bold text-rose-600" : ""}`}>{hhmm(row.restraintMin)}</td>
           <td className={`${xcell} text-right font-mono`}>{hhmm(row.laborMin)}</td>
           <td className={`${xcell} text-right font-mono`}>{row.nightMin ?? "—"}</td>
@@ -427,8 +544,8 @@ function EditableRow({
           <div className="mt-1">{adjSel(outAdj, setOutAdj)}</div>
         </td>
         <td className="p-3">
-          <input type="number" min={0} step={5} value={restMin} onChange={(e) => setRestMin(Number(e.target.value))} className={`${inputCls} w-16`} />
-          <div className={`mt-1 text-xs ${restMin < reqRest ? "font-bold text-rose-600" : "text-slate-400"}`}>必要 {reqRest}分</div>
+          <input type="number" min={0} step={5} value={effRestMin} readOnly={useSegs} onChange={(e) => !useSegs && setRestMin(Number(e.target.value))} className={`${inputCls} w-16 ${useSegs ? "bg-slate-100 text-slate-500" : ""}`} />
+          <div className={`mt-1 text-xs ${effRestMin < reqRest ? "font-bold text-rose-600" : "text-slate-400"}`}>必要 {reqRest}分{useSegs ? `・深${segSum.night}/日${segSum.day}` : ""}</div>
         </td>
         <td className="p-3 text-right font-mono">
           <span className="whitespace-nowrap">

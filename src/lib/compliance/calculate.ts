@@ -122,7 +122,9 @@ export function calcShiftMetrics(
   }, 0);
   const nightMin = Math.max(0, rawNightMin - nightBreakMin);
   const restPeriodMin = diffMinutes(input.prevClockOutAt, input.clockInAt);
-  return { restraintMin, laborMin, nightMin, restPeriodMin };
+  // 深夜にかかった休憩分（月次「休憩(深夜)」表示用）。控除は上の nightMin に反映済み。
+  const nightRestMin = Math.round(Math.min(nightBreakMin, rawNightMin));
+  return { restraintMin, laborMin, nightMin, nightRestMin, restPeriodMin };
 }
 
 export interface SplitRestTotalResult {

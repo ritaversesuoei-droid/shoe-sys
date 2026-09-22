@@ -51,6 +51,21 @@ export default async function AttendancePage({
   else if (folder === "unconfirmed") q = q.eq("confirmed", false);
   const { data: shifts } = await q;
 
+  // 深夜休憩(night_rest_min)/休憩区間(rest_segments)は別クエリで best-effort（0024未適用でも画面を落とさない）
+  const nrMap = new Map<string, number | null>();
+  const segMap = new Map<string, { startIso: string; endIso: string }[] | null>();
+  const shiftIds = (shifts ?? []).map((s) => s.id);
+  if (shiftIds.length > 0) {
+    const { data: extra, error: exErr } = await supabase.from("shifts").select("id, night_rest_min, rest_segments").in("id", shiftIds);
+    if (!exErr && extra) {
+      for (const e of extra) {
+        const ee = e as { id: string; night_rest_min?: number | null; rest_segments?: unknown };
+        nrMap.set(ee.id, ee.night_rest_min ?? null);
+        segMap.set(ee.id, Array.isArray(ee.rest_segments) ? (ee.rest_segments as { startIso: string; endIso: string }[]) : null);
+      }
+    }
+  }
+
   // 確定時刻(timestamptz)から JST の HH:MM:SS を得る（打刻由来で actual_in/out が無い勤務の既定値補完用）
   const jstTime = (iso: string | null): string | null =>
     iso ? new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : null;
@@ -72,6 +87,8 @@ export default async function AttendancePage({
       restraintMin: s.restraint_min,
       laborMin: s.labor_min,
       nightMin: s.night_min,
+      nightRestMin: nrMap.get(s.id) ?? null,
+      restSegments: segMap.get(s.id) ?? null,
       warn: [s.warn_restraint, s.warn_rest].filter(Boolean).join(" / ") || null,
       revisionStatus: s.revision_status,
       revisionReason: s.revision_reason,

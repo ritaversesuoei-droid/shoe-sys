@@ -16,7 +16,8 @@ export interface MonthlyDay {
   workDate: string;
   restraintMin: number;
   laborMin: number;
-  restMin: number;          // 休憩（勤務中）
+  restMin: number;          // 休憩（勤務中・合計）
+  restNightMin: number;     // うち深夜(22-5)にかかった休憩（深夜労働から控除済み）
   requiredRestMin: number;  // 労基法34条の必要休憩（労働に応じ 0/45/60）
   restFlag: RestFlag;       // short=不足 / over=過多 / null=適正
   nightMin: number;
@@ -34,6 +35,7 @@ export interface DriverMonthlySummary {
   restraintMin: number;
   laborMin: number;
   restMin: number;          // 休憩合計
+  restNightMin: number;     // うち深夜休憩の合計
   restIssueCount: number;   // 休憩の要確認（不足＋過多）日数
   nightMin: number;
   overtimeMin: number;
@@ -108,6 +110,16 @@ export async function getMonthlySummary(
   const { data: shifts, error } = await q;
   if (error) throw error;
 
+  // 深夜休憩(night_rest_min)は別クエリで best-effort 取得（0024 未適用でも月次を落とさない）。
+  const nightRestMap = new Map<string, number>();
+  const shiftIds = (shifts ?? []).map((s) => s.id);
+  if (shiftIds.length > 0) {
+    const { data: nr, error: nrErr } = await sb.from("shifts").select("id, night_rest_min").in("id", shiftIds);
+    if (!nrErr && nr) {
+      for (const r of nr) nightRestMap.set(r.id, (r as { night_rest_min?: number | null }).night_rest_min ?? 0);
+    }
+  }
+
   // 違反件数（compliance_alerts）: 未解消(open)かつ「違反(violation)」を含む勤務のみを数える。
   //   - status=resolved はソフト解消済みなので除外（解消で件数が減る）。
   //   - alert には警告(warning)のみの行も含まれるため、detail の severity=violation を持つ行だけを違反として計上。
@@ -137,6 +149,7 @@ export async function getMonthlySummary(
         restraintMin: 0,
         laborMin: 0,
         restMin: 0,
+        restNightMin: 0,
         restIssueCount: 0,
         nightMin: 0,
         overtimeMin: 0,
@@ -150,6 +163,7 @@ export async function getMonthlySummary(
     const labor = s.labor_min ?? 0;
     const night = s.night_min ?? 0;
     const rest = intervalToMin(s.rest_time);
+    const restNight = Math.min(nightRestMap.get(s.id) ?? 0, rest); // 深夜休憩（合計を超えない）
     const requiredRestMin = requiredRest(labor);
     const restFlag = restFlagOf(rest, requiredRestMin);
     const weekend = isWeekend(s.work_date);
@@ -157,6 +171,7 @@ export async function getMonthlySummary(
     cur.restraintMin += restraint;
     cur.laborMin += labor;
     cur.restMin += rest;
+    cur.restNightMin += restNight;
     cur.nightMin += night;
     if (restFlag) cur.restIssueCount += 1;
     cur.overtimeMin += Math.max(0, labor - regularDailyMin);
@@ -167,6 +182,7 @@ export async function getMonthlySummary(
       restraintMin: restraint,
       laborMin: labor,
       restMin: rest,
+      restNightMin: restNight,
       requiredRestMin,
       restFlag,
       nightMin: night,
