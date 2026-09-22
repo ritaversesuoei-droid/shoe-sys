@@ -52,11 +52,13 @@ export default async function AttendancePage({
   const { data: shifts } = await q;
 
   // 深夜休憩(night_rest_min)/休憩区間(rest_segments)は別クエリで best-effort（0024未適用でも画面を落とさない）
+  //   本体と同じ絞り込み(month_key[+driver])で取得＝id列挙による長大URL/失敗を避ける（余分な行が来ても無害）。
   const nrMap = new Map<string, number | null>();
   const segMap = new Map<string, { startIso: string; endIso: string }[] | null>();
-  const shiftIds = (shifts ?? []).map((s) => s.id);
-  if (shiftIds.length > 0) {
-    const { data: extra, error: exErr } = await supabase.from("shifts").select("id, night_rest_min, rest_segments").in("id", shiftIds);
+  {
+    let eq = supabase.from("shifts").select("id, night_rest_min, rest_segments").eq("month_key", monthKey);
+    if (driver) eq = eq.eq("driver_id", driver);
+    const { data: extra, error: exErr } = await eq;
     if (!exErr && extra) {
       for (const e of extra) {
         const ee = e as { id: string; night_rest_min?: number | null; rest_segments?: unknown };
