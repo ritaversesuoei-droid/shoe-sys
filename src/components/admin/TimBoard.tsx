@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -235,6 +235,23 @@ export function TimBoard({
   const { control: zoomControl, wrapStyle } = useBoardZoom("tim");
   const [detail, setDetail] = useState<{ ev: TimEvent; name: string } | null>(null);
   const [live, setLive] = useState(false);
+  // 「更新」の実行中状態。router.refresh() を transition で包むと再取得完了まで isRefreshing=true。
+  const [isRefreshing, startRefresh] = useTransition();
+  const [justUpdated, setJustUpdated] = useState(false);
+  const doRefresh = () => {
+    setJustUpdated(false);
+    startRefresh(() => router.refresh());
+  };
+  // 更新完了(isRefreshing false)後に「更新しました」を一瞬出して、更新されたと分かるようにする。
+  const wasRefreshing = useRef(false);
+  useEffect(() => {
+    if (wasRefreshing.current && !isRefreshing) {
+      setJustUpdated(true);
+      const t = setTimeout(() => setJustUpdated(false), 1600);
+      return () => clearTimeout(t);
+    }
+    wasRefreshing.current = isRefreshing;
+  }, [isRefreshing]);
 
   // LINE月次上限の編集
   const [editingLimit, setEditingLimit] = useState(false);
@@ -326,8 +343,22 @@ export function TimBoard({
               </button>
             )}
           </div>
-          <button onClick={() => router.refresh()} className="rounded-lg border-2 border-slate-900 bg-white px-3 py-2 text-sm font-bold shadow-[2px_2px_0_0_#0f172a] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none">
-            🔄 更新
+          <button
+            onClick={doRefresh}
+            disabled={isRefreshing}
+            aria-busy={isRefreshing}
+            className={`flex items-center gap-1.5 rounded-lg border-2 border-slate-900 px-3 py-2 text-sm font-bold shadow-[2px_2px_0_0_#0f172a] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none ${
+              isRefreshing ? "cursor-wait bg-slate-200 text-slate-500" : "bg-white"
+            }`}
+          >
+            {isRefreshing ? (
+              <>
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-slate-800" />
+                更新中…
+              </>
+            ) : (
+              <>🔄 更新</>
+            )}
           </button>
         </div>
       </header>
@@ -338,11 +369,13 @@ export function TimBoard({
           {live ? "自動更新中（即時反映）" : "接続中…"}
         </span>
         <span className="text-slate-400" title="この画面のデータを取得した時刻（更新・自動反映で更新）">最終更新 {jstStamp(now)}</span>
+        {isRefreshing && <span className="inline-flex items-center gap-1 font-bold text-blue-600"><span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600" />更新中…</span>}
+        {justUpdated && <span className="font-bold text-green-600">✅ 更新しました</span>}
         <span>稼働 {rows.filter((r) => r.status === "working").length} / 終業 {rows.filter((r) => r.status === "finished").length} / 未出勤 {rows.filter((r) => r.status === "absent").length} / 全 {rows.length} 名</span>
         <span className="ml-auto">{zoomControl}</span>
       </div>
 
-      <div className="board-zoom" style={wrapStyle}>
+      <div className={`board-zoom transition-opacity duration-200 ${isRefreshing ? "pointer-events-none opacity-50" : "opacity-100"}`} style={wrapStyle}>
       {rows.length === 0 ? (
         <p className="rounded-xl border-2 border-dashed border-slate-300 p-10 text-center text-slate-400">{label} の打刻はまだありません</p>
       ) : (
